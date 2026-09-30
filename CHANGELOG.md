@@ -255,6 +255,14 @@ tracked in [docs/design/03-roadmap.md](docs/design/03-roadmap.md); this file tra
   be switched off rather than fixed. An interpreter older than 3.11 hands over to a newer one
   found on `PATH` or through `uv python find`. The console scripts stay for manual use
   ([#141](https://github.com/drevendev/HungryCrab/issues/141)).
+- **A local prey's `.git/config` cannot make the crab run a program.** A local directory is
+  prey, and its git configuration came with it: `core.fsmonitor` ran on every `diff HEAD` and
+  `ls-files` of the worktree fingerprint, a filter driver the prey's `.gitattributes` selected
+  ran when git hashed a copied or dirty tree, `diff.external` and textconv drivers ran on a
+  dirty tree, and `log.showSignature` ran `gpg.program`. Every git command the crab runs now
+  switches the monitor and signature checks off, passes `--no-ext-diff --no-textconv` to
+  `diff`, `log` and `show`, and empties every filter driver the repository configures
+  ([#178](https://github.com/drevendev/HungryCrab/issues/178)).
 - **Codex can install the plugin again.** The Codex presentation shipped as a
   `.codex-plugin/plugin.json` overlay with no `name` and no `version`. When that file exists,
   Codex takes the plugin's identity from it rather than from the root `plugin.json`: a missing
