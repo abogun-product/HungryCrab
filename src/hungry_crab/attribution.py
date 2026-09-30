@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -23,9 +23,10 @@ from typing import Any, Protocol
 
 from .errors import CrabError
 from .fetch.git import GitRunner
-from .licensing.detect import is_license_file_name
+from .licensing.detect import find_spdx_identifier, is_license_file_name
 from .licensing.matrix import LicenseClass, classify, normalize
 from .mdutil import cell
+from .miners.inventory import VENDORED_DIRS
 from .nutrients import Candidate
 from .pr_publication import GeneratedFile, PreparedPullRequest, nutrient_branch_name
 from .pr_serve import read_maw_text
@@ -36,6 +37,7 @@ ATTRIBUTIONS_SCHEMA = "hungry-crab.attributions/1"
 MATERIALIZATION_KIND = "materialization"
 COPY_MODES = frozenset({"COPY", "COPY_FILE"})
 NOTICE_WIDTH = 80
+NOTICE_HEADING = "# Third-party notices"
 _RECEIPT_VERSION = 1
 _SHA_RE = re.compile(r"[0-9a-f]{7,40}")
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
@@ -593,7 +595,7 @@ def render_notices(records: Iterable[AttributionRecord]) -> str:
         "the command reproduces it byte for byte. It is headings and paragraphs on purpose: a "
         "Markdown formatter has nothing to rewrite here."
     )
-    lines = ["# Third-party notices", "", *_wrapped(_atoms(intro)), ""]
+    lines = [NOTICE_HEADING, "", *_wrapped(_atoms(intro)), ""]
     if not ordered:
         lines.extend(["Nothing has been carried over yet.", ""])
         return "\n".join(lines)
@@ -633,9 +635,11 @@ class SourceReader(Protocol):
 
     def read(self, sha: str, path: str) -> str | None: ...
 
-    def entries(self, sha: str) -> dict[str, str] | None:
-        """The files (not directories) at the root of the prey at ``sha``, by name, with their
-        git mode: ``100644`` or ``100755`` for a file, ``120000`` for a symbolic link."""
+    def entries(self, sha: str, directory: str = "") -> dict[str, str] | None:
+        """The files (not directories) in one directory of the prey at ``sha``, its root by
+        default, by name, with their git mode: ``100644`` or ``100755`` for a file, ``120000``
+        for a symbolic link, ``160000`` for a submodule; ``None`` when there is no such
+        directory."""
         ...
 
 
@@ -654,18 +658,18 @@ class GitSourceReader:
     def read(self, sha: str, path: str) -> str | None:
         return self.git.try_run("show", f"{sha}:./{path}")
 
-    def entries(self, sha: str) -> dict[str, str] | None:
+    def entries(self, sha: str, directory: str = "") -> dict[str, str] | None:
         # `<sha>:./` is the tree of the directory the clone was opened at, which is the prey's
         # root when the prey is a subdirectory of a larger repository; `--full-tree` keeps
         # ls-tree from filtering that tree's entries by the same directory a second time.
-        listing = self.git.try_run("ls-tree", "--full-tree", "-z", f"{sha}:./")
+        listing = self.git.try_run("ls-tree", "--full-tree", "-z", f"{sha}:./{directory}")
         if listing is None:
             return None
         files: dict[str, str] = {}
         for entry in listing.split("\0"):
             meta, _, name = entry.partition("\t")
             mode, kind = [*meta.split(" "), "", ""][:2]
-            if name and kind == "blob":
+            if name and kind in ("blob", "commit"):
                 files[name] = mode
         return files
 
@@ -674,7 +678,8 @@ class GitSourceReader:
 _NOTICE_OWED = frozenset({"copyright-notice", "notice-file", "attribution"})
 _SOURCE_NOTICE_RE = re.compile(r"NOTICE(?:\.[A-Za-z0-9]+)?", re.IGNORECASE)
 _MAX_CARRIED = 100_000
-_SYMLINK_MODE = "120000"
+# A regular file, executable or not; a link (120000) or a submodule (160000) is not material.
+_FILE_MODES = frozenset({"100644", "100755"})
 
 
 def carried_texts(sha: str, reader: SourceReader) -> tuple[CarriedText, ...]:
@@ -690,7 +695,7 @@ def carried_texts(sha: str, reader: SourceReader) -> tuple[CarriedText, ...]:
     for name in sorted(names):
         if not (is_license_file_name(name) or _SOURCE_NOTICE_RE.fullmatch(name)):
             continue
-        if names[name] == _SYMLINK_MODE:
+        if names[name] not in _FILE_MODES:
             # A link's blob is the path it points at; carried as text it would be a notice that
             # reproduces a file name, and it would satisfy the refusal below by its name alone.
             raise CrabError(
@@ -705,6 +710,133 @@ def carried_texts(sha: str, reader: SourceReader) -> tuple[CarriedText, ...]:
             )
         texts.append(CarriedText(name, clean_text(text)))
     return tuple(texts)
+
+
+def check_taken_licences(receipt: MaterializationReceipt, reader: SourceReader) -> None:
+    """Every taken file answers to the source's licence, and not to one of its own.
+
+    The verdict, the obligation and the carried texts are the repository's. A file in vendored
+    code, under a directory that holds a licence file of its own, or with a licence header that
+    names another licence is someone else's material inside the prey, and the repository's
+    verdict does not answer for it: a person decides, outside the crab.
+    """
+
+    sha = receipt.source.sha
+    for item in receipt.taken:
+        parts = item.prey_path.split("/")
+        vendored = next((part for part in parts[:-1] if part in VENDORED_DIRS), None)
+        if vendored is not None:
+            raise CrabError(
+                "a taken file lives in vendored code, which the source's licence does not cover",
+                hint=f"{item.prey_path} is under {vendored}/; take it from its own upstream",
+            )
+        listed: dict[str, str] = {}
+        for depth in range(len(parts)):
+            directory = "/".join(parts[:depth])
+            names = reader.entries(sha, directory)
+            if names is None:
+                raise CrabError(
+                    "cannot list a directory of the prey at the commit the material came from",
+                    hint=f"{directory or 'the root'} at {sha[:7]}",
+                )
+            listed = names
+            if not directory:
+                continue  # the root's licence is the verdict's own
+            own = next((name for name in sorted(names) if is_license_file_name(name)), None)
+            if own is not None:
+                raise CrabError(
+                    "a taken file lives under a licence of its own, which the verdict does not "
+                    "answer for",
+                    hint=f"{item.prey_path} is under {directory}/{own}; a person decides",
+                )
+        if listed.get(parts[-1]) not in _FILE_MODES:
+            # A directory, a link or a submodule is not material: git would hand back a tree
+            # listing, the path a link points at, or nothing, and any of them would pass as
+            # the source of an adapted file.
+            raise CrabError(
+                "a taken prey path is not a regular file at that commit",
+                hint=f"{item.prey_path} is a directory, a link or a submodule; take a file",
+            )
+        declared = find_spdx_identifier((reader.read(sha, item.prey_path) or "")[:4000])
+        if declared and normalize(declared) != normalize(receipt.source.license):
+            raise CrabError(
+                "a taken file declares another licence than the source's",
+                hint=(
+                    f"{item.prey_path} says SPDX-License-Identifier: {declared}, the source is "
+                    f"{receipt.source.license or 'unlicensed'}; a person decides"
+                ),
+            )
+
+
+def checked_attribution_file(maw_root: Path, name: str) -> str:
+    """The notice path `.crab.yml` names, refused unless the crab may write it.
+
+    A plain relative path inside the maw, not the receipts file, not under `.git`, and not a
+    file somebody else wrote: a notice path of `README.md` would replace the README with the
+    notice in the next pull request.
+    """
+
+    parts = name.split("/")
+    if (
+        not name
+        or name.startswith("/")
+        or "\\" in name
+        or ":" in name
+        or _CONTROL_RE.search(name)
+        or any(part in ("", ".", "..") for part in parts)
+        or any(part.casefold() == ".git" for part in parts)
+        or name == ATTRIBUTIONS_PATH
+    ):
+        raise CrabError(
+            f"attribution_file {name!r} in .crab.yml is not a plain path inside the maw",
+            hint="name a relative path such as THIRD_PARTY_NOTICES.md, without ./ or ..",
+        )
+    target = maw_root / name
+    root = maw_root.resolve()
+    if not target.resolve().is_relative_to(root):
+        raise CrabError(
+            f"attribution_file {name!r} leads outside the maw", hint="a link must not carry it out"
+        )
+    if target.exists():
+        try:
+            head = target.read_text(encoding="utf-8")[:200]
+        except (OSError, UnicodeError) as exc:
+            raise CrabError(f"cannot read {name}: {exc}") from exc
+        if not head.startswith(NOTICE_HEADING):
+            raise CrabError(
+                f"attribution_file {name!r} is a file the crab did not write",
+                hint="name another file in .crab.yml; the crab overwrites only its own notice",
+            )
+    return name
+
+
+def base_receipts_kept(
+    prepared: PreparedPullRequest,
+) -> Callable[[Callable[[str], str | None]], None]:
+    """A check, for the moment the default branch is fetched, that no receipt on it is dropped.
+
+    The receipts a pull request carries are the maw's working tree plus the new one, and the
+    branch is built on the default branch as fetched at publication. A checkout behind that
+    branch would replace receipts merged since with its older file, and nothing would conflict:
+    `crab attribution --check` stays green while a merged file is attributed nowhere.
+    """
+
+    ours = next((item.content for item in prepared.files if item.path == ATTRIBUTIONS_PATH), None)
+
+    def check(read_base: Callable[[str], str | None]) -> None:
+        base = read_base(ATTRIBUTIONS_PATH)
+        if base is None or ours is None:
+            return
+        kept = {record.identity for record in parse_attributions(ours)}
+        dropped = [record for record in parse_attributions(base) if record.identity not in kept]
+        if dropped:
+            names = ", ".join(f"{r.nutrient_id}@{r.source.sha[:7]}" for r in dropped[:5])
+            raise CrabError(
+                "this pull request would drop receipts the default branch already holds",
+                hint=f"the maw's checkout is behind; pull, then serve again ({names})",
+            )
+
+    return check
 
 
 def _normalized(text: str) -> str:
@@ -830,16 +962,20 @@ def prepare_copy_pull_request(
     """Freeze one COPY nutrient's files, its receipt and the notice file into an immutable payload.
 
     Order of proof: the receipt is parsed strictly, checked against the card and the meal's prey,
-    its maw files are read under the maw's containment rule, its prey paths are checked against
-    the prey's own history (a verbatim copy byte for byte), the source's licence and NOTICE files
-    are read at that commit — a licence that asks for its notice to travel and a prey that has
-    none to carry is refused — the receipt is appended to the maw's attributions under the
-    identity rule, and the notice file is rendered from all of them. Only then is there a
-    payload; the transaction scans it before any provider effect.
+    the notice path is checked as one the crab may write, its maw files are read under the maw's
+    containment rule, its prey paths are checked against the prey's own history (a verbatim copy
+    byte for byte) and against licences of their own (vendored code, a nested licence file, a
+    header naming another licence), the source's licence and NOTICE files are read at that
+    commit — a licence that asks for its notice to travel and a prey that has none to carry is
+    refused — the receipt is appended to the maw's attributions under the identity rule, and the
+    notice file is rendered from all of them. Only then is there a payload; the transaction
+    scans it before any provider effect, and the effect refuses a branch that would drop a
+    receipt the default branch already holds.
     """
 
     receipt = load_materialization_receipt(receipt_payload)
     _check_against_meal(card, receipt, menu, attribution_file)
+    checked_attribution_file(maw_root, attribution_file)
     maw_files: dict[str, str] = {}
     for item in receipt.taken:
         try:
@@ -850,6 +986,7 @@ def prepare_copy_pull_request(
                 hint=exc.hint,
             ) from exc
     verify_sources(receipt, source_reader, maw_files)
+    check_taken_licences(receipt, source_reader)
 
     obligation = obligation_for(receipt.source.license, as_dict(menu.get("verdict")))
     texts: tuple[CarriedText, ...] = ()
@@ -882,8 +1019,7 @@ def prepare_copy_pull_request(
     files.append(GeneratedFile(path=ATTRIBUTIONS_PATH, content=dump_attributions(records)))
     files.append(GeneratedFile(path=attribution_file, content=render_notices(records)))
 
-    rendered_body = body.rstrip()
-    if "## Attribution" not in rendered_body:
-        rendered_body += "\n\n" + _attribution_section(recorded, attribution_file)
-    rendered_body += "\n"
-    return PreparedPullRequest(title=title, body=rendered_body, files=tuple(files))
+    # Always the crab's own section, last: a note or an evidence path that happens to contain
+    # the heading must not be what the reader takes for the attribution.
+    rendered_body = body.rstrip() + "\n\n" + _attribution_section(recorded, attribution_file)
+    return PreparedPullRequest(title=title, body=rendered_body + "\n", files=tuple(files))
