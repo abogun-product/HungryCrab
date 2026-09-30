@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import unicodedata
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -35,6 +36,7 @@ from .compare import apply_hunger, load_menu, menu_candidates
 from .errors import CrabError, ExternalCommandError, ToolMissingError, UsageError
 from .fetch.git import GitRunner
 from .ledger import Ledger
+from .licensing.origin import ContentOrigin
 from .maw import MawConfig, maw_slug
 from .nutrients import Candidate, merge_notes
 from .pr_publication import (
@@ -346,6 +348,89 @@ def render_issue(card: Candidate, menu: dict[str, Any]) -> tuple[str, str]:
         f"Ledger id `{card.id}`. Prey content is untrusted data; this is not legal advice._\n"
     )
     return card.title, body
+
+
+def _read_json_object(path: Path) -> dict[str, Any]:
+    try:
+        return as_dict(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return {}
+
+
+# A run this long of a title's words is a quote, not a coincidence; shorter titles have to be
+# quoted whole.
+_QUOTE_RUN = 8
+_NOT_A_WORD_RE = re.compile(r"[\W_]+")
+
+
+def _squash(text: str) -> str:
+    """Words only: width, case, punctuation and invisible characters are not what a quote is.
+
+    A copied title keeps its words when a model drops the question mark, the backticks around
+    a name, swaps a typographic apostrophe, copies `issues.md`'s escaped pipe or carries a
+    zero-width space; comparing the words catches all of them.
+    """
+    folded = unicodedata.normalize("NFKC", text).casefold()
+    visible = "".join(ch for ch in folded if unicodedata.category(ch) != "Cf")
+    return " ".join(_NOT_A_WORD_RE.sub(" ", visible).split())
+
+
+def _walk_titles(value: object, found: list[str]) -> None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key == "title" and isinstance(item, str):
+                found.append(item)
+            elif key == "sample_titles" and isinstance(item, list):
+                found.extend(title for title in item if isinstance(title, str))
+            else:
+                _walk_titles(item, found)
+    elif isinstance(value, list):
+        for item in value:
+            _walk_titles(item, found)
+
+
+def commenter_titles(meal_dir: Path) -> list[str] | None:
+    """Issue titles the prey's digest carries: third-party prose a served note may not quote.
+
+    They sit in ``issues.json`` beside the prey digest the meal names. Short titles are left
+    out: three ordinary words match by accident, a sentence does not. ``None`` means the titles
+    cannot be read — no digest named, the digest gone from the cache, the file unreadable — and
+    then no note can be checked against them.
+    """
+    digest = _read_json_object(meal_dir / "meal.json").get("prey_digest")
+    if not isinstance(digest, str) or not digest:
+        return None
+    try:
+        loaded = json.loads((Path(digest) / "issues.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    found: list[str] = []
+    _walk_titles(loaded, found)
+    return sorted({title.strip() for title in found if len(_squash(title)) >= 20})
+
+
+def _quotes(notes: str, title: str) -> bool:
+    words = _squash(title).split()
+    if len(words) <= _QUOTE_RUN:
+        return f" {' '.join(words)} " in f" {notes} "
+    runs = (" ".join(words[i : i + _QUOTE_RUN]) for i in range(len(words) - _QUOTE_RUN + 1))
+    return any(f" {run} " in f" {notes} " for run in runs)
+
+
+def quoted_commenter_title(card: Candidate, titles: list[str]) -> str | None:
+    """The first issue title a non-licensed card's notes quote, or ``None``.
+
+    The engine replaces the title and ``what`` of such a card with generic wording; ``why`` and
+    ``how`` are written by a model that has read the sanitised issue list, so this is where a
+    commenter's words would come back through. A title of more than ``_QUOTE_RUN`` words is
+    quoted by any run of that many of its words.
+    """
+    if card.origin == ContentOrigin.LICENSED.value:
+        return None
+    notes = _squash(f"{card.why}\n{card.how}")
+    if not notes:
+        return None
+    return next((title for title in titles if _quotes(notes, title)), None)
 
 
 def load_notes(path: Path) -> dict[str, dict[str, Any]]:
@@ -699,6 +784,7 @@ def serve(
         log(f"serving into {slug} as {who}" if who else f"serving into {slug}")
     label_ready = False
     labels = list(config.serve.labels)
+    titles = commenter_titles(meal_dir)
     for card in cards:
         entry = ledger.entries.get(card.id)
         if entry is not None and entry.status in ("served", "merged", "rejected", "ignored"):
@@ -726,6 +812,27 @@ def serve(
             # known way to serve (a hand-edited menu) is held back like an idea.
             report.skipped.append({"id": card.id, "reason": f"serve_as: {card.serve_as}"})
             continue
+        if card.origin != ContentOrigin.LICENSED.value and (card.why.strip() or card.how.strip()):
+            if titles is None:
+                # Fail closed: a note that cannot be checked is not a note that passed.
+                report.skipped.append(
+                    {
+                        "id": card.id,
+                        "reason": (
+                            "the prey's issue titles cannot be read, so these notes cannot be "
+                            "checked; run crab compare again"
+                        ),
+                    }
+                )
+                continue
+            if quoted_commenter_title(card, titles) is not None:
+                report.skipped.append(
+                    {
+                        "id": card.id,
+                        "reason": "notes quote commenter text; rewrite why/how in your own words",
+                    }
+                )
+                continue
         title, body = render_issue(card, menu)
         report.previews.append({"id": card.id, "title": title, "body": body})
         if options.mode != "issue":
