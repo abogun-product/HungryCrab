@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Protocol, TextIO, cast
 
 from .cache import Slug
-from .compare import load_menu, menu_candidates
+from .compare import apply_hunger, load_menu, menu_candidates
 from .errors import CrabError, ExternalCommandError, ToolMissingError, UsageError
 from .fetch.git import GitRunner
 from .ledger import Ledger
@@ -390,7 +390,7 @@ def load_cleanroom_receipts(payload: str) -> dict[str, str]:
         receipts[receipt.nutrient_id] = raw
     if not receipts:
         raise CrabError(
-            "milestone 0.3 pull-request serving requires a clean-room implementation receipt",
+            "pull-request serving needs the clean-room implementation receipts on stdin",
             hint=(
                 "pipe one strict implementer receipt JSON object per selected REIMPLEMENT "
                 "nutrient to stdin"
@@ -517,7 +517,9 @@ def _serve_pull_requests(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     def prepare(card: Candidate, receipt_payload: str) -> PreparedPullRequest:
         title, body = render_issue(card, menu)
-        return prepare_cleanroom_pull_request(card.id, title, body, receipt_payload, maw_root)
+        return prepare_cleanroom_pull_request(
+            card.id, title, body, receipt_payload, maw_root, slug=slug
+        )
 
     def publish(
         card: Candidate, prepared: PreparedPullRequest, allow_create: bool
@@ -586,7 +588,13 @@ def serve(
         notes = load_notes(options.notes)
         for card in cards:
             if card.id in notes:
-                merge_notes(card, notes[card.id])
+                for problem in merge_notes(card, notes[card.id]):
+                    log(f"warning: {card.id}: notes {problem}")
+    # The hunger block is a ceiling the maw sets, read again here rather than trusted from the
+    # menu: a category switched off or narrowed after compare holds from the next serve on, and
+    # nothing a note said can lift a card over it.
+    cards, hidden = apply_hunger(cards, config.hunger)
+    skipped.extend(hidden)
     report = ServeReport(mode=options.mode, maw=str(maw_root), skipped=skipped)
     report.ledger_path = str(ledger.path) if ledger.path else None
     slug = slug_lookup(maw_root)
@@ -672,6 +680,12 @@ def serve(
             )
             ledger.ensure(card, now=now)
             ledger.mark(card.id, "served", url=str(known.get("url") or "") or None, now=now)
+            continue
+        if card.serve_as not in ("issue", "pr") and card.id not in options.ids:
+            # `hunger: <category>: ideas-only` keeps a category on the menu without issues; an
+            # id asked for by name is the user overriding that by hand. Anything that is not a
+            # known way to serve (a hand-edited menu) is held back like an idea.
+            report.skipped.append({"id": card.id, "reason": f"serve_as: {card.serve_as}"})
             continue
         title, body = render_issue(card, menu)
         report.previews.append({"id": card.id, "title": title, "body": body})
