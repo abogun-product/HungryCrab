@@ -437,7 +437,9 @@ def _classify_id(ident: str) -> LicenseClass:
     if ident.startswith(("MPL-", "EPL-", "CDDL-")):
         return LicenseClass.FILE_COPYLEFT
     if ident.startswith("LGPL-"):
-        return LicenseClass.LGPL
+        # The version parser is the supported-policy boundary, including deprecated spellings.
+        # An unknown version must not reach either the COPY or clean-room compatibility rules.
+        return LicenseClass.LGPL if _lgpl_version(ident) is not None else LicenseClass.UNKNOWN
     if ident.startswith("AGPL-"):
         return LicenseClass.AGPL
     if ident.startswith("GPL-"):
@@ -586,6 +588,9 @@ def _lgpl_prey_fits_gpl_maw(prey: str, maw: str | None) -> bool:
 def decide_for_class(prey_spdx: str | None, maw: MawClass, maw_spdx: str | None = None) -> Verdict:
     prey = normalize(prey_spdx)
     cls = classify(prey)
+    maw_id = normalize(maw_spdx) or ""
+    if maw_id.upper().startswith("LGPL-") and classify(maw_id) is LicenseClass.UNKNOWN:
+        return Verdict(Mode.HUMAN, human_review=True, reason=f"unrecognised maw license {maw_id}")
     if cls is LicenseClass.PERMISSIVE:
         return Verdict(Mode.COPY, reason="permissive license: keep the copyright notice")
     if cls is LicenseClass.PERMISSIVE_NOTICE:
