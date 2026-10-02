@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from hungry_crab.cache import Slug, prey_paths
-from hungry_crab.errors import UsageError
+from hungry_crab.errors import ExternalCommandError, UsageError
 from hungry_crab.fetch.catch import CatchOptions, catch, clone_arguments, parse_since
 from hungry_crab.fetch.git import git_env
 
@@ -107,3 +107,37 @@ def test_prey_clones_never_fetch_lfs_content() -> None:
     is ever built or run, so a pointer says as much as the object it stands in for.
     """
     assert git_env()["GIT_LFS_SKIP_SMUDGE"] == "1"
+
+
+def test_changed_clone_policy_honours_requested_history(npm_app: Path, tmp_path: Path) -> None:
+    slug = Slug("example", "bounds")
+    url = npm_app.as_uri()  # local-path clones ignore depth; file transport does not
+    cache = tmp_path / "cache"
+    full = catch(slug, cache_root=cache, source_url=url)
+    shallow = catch(slug, CatchOptions(shallow=True), cache_root=cache, source_url=url)
+    assert not full.shallow and shallow.shallow and full.sha == shallow.sha
+    restored = catch(slug, cache_root=cache, source_url=url)
+    assert not restored.shallow
+
+
+def test_invalid_since_and_failed_reclone_preserve_last_valid_clone(
+    npm_app: Path, tmp_path: Path
+) -> None:
+    slug = Slug("example", "preserve")
+    cache = tmp_path / "cache"
+    first = catch(slug, cache_root=cache, source_url=str(npm_app))
+    metadata = prey_paths(slug, cache).catch_file.read_bytes()
+    with pytest.raises(UsageError):
+        catch(
+            slug,
+            CatchOptions(force=True, since="invalid"),
+            cache_root=cache,
+            source_url=str(npm_app),
+        )
+    with pytest.raises(ExternalCommandError):
+        catch(
+            slug, CatchOptions(force=True), cache_root=cache, source_url=str(tmp_path / "missing")
+        )
+    assert prey_paths(slug, cache).catch_file.read_bytes() == metadata
+    assert (prey_paths(slug, cache).repo / "package.json").is_file()
+    assert len(first.sha) == 40

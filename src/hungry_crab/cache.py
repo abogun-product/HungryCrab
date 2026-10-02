@@ -96,6 +96,10 @@ class PreyPaths:
         return self.root / "api"
 
     @property
+    def wiki(self) -> Path:
+        return self.root / "wiki"
+
+    @property
     def digests(self) -> Path:
         return self.root / "digests"
 

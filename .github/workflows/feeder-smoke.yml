@@ -1,0 +1,48 @@
+name: Feeder smoke
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * 1'
+permissions:
+  contents: read
+jobs:
+  composite:
+    name: Composite (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./
+        id: feeder
+        with:
+          prey: pypa/pipx
+          artifact-name: feeder-composite-${{ matrix.os }}
+          issues: '10'
+      - name: Check the exported contract and repository
+        shell: python
+        env:
+          CRAB_BUNDLE: ${{ steps.feeder.outputs.bundle-path }}
+        run: |
+          import json, os, subprocess
+          from pathlib import Path
+          root = Path(os.environ['CRAB_BUNDLE'])
+          data = json.loads((root / 'feeder.json').read_text(encoding='utf-8'))
+          assert data['side_effects'] == {'issues_created': 0, 'ledger_written': False}
+          assert (root / 'menu.json').is_file()
+          for side in ('prey', 'maw'):
+              manifest = json.loads((root / f'{side}-digest' / 'manifest.json').read_text(encoding='utf-8'))
+              assert all(m['ok'] for m in manifest['miners'])
+          assert not subprocess.check_output(['git', 'status', '--porcelain'], text=True).strip()
+  reusable:
+    uses: ./.github/workflows/feeder.yml
+    with:
+      prey: pypa/pipx
+      issues: 10
+      artifact-name: feeder-reusable

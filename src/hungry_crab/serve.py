@@ -313,6 +313,8 @@ def _license_trace(card: Candidate) -> str:
     ]
     if card.license_reason:
         lines.append(f"- origin cap: {card.license_reason}")
+    if card.license_policy_reason:
+        lines.append(f"- maw policy: {card.license_policy_reason}")
     return "\n".join(lines)
 
 
