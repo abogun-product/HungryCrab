@@ -43,8 +43,9 @@ release; `master` is ahead of it by the 0.2.1 and 0.2.2 milestones — self-feed
 resolutions and the menu benchmark — and by most of 0.3: the budget policy with paged
 documents, the two safety hooks, the clean-room protocol and pull-request serving for
 REIMPLEMENT nutrients and, with attribution receipts, for COPY. It is where the install below
-points.** The wiki miner and strict mode are still to come (see the
-[roadmap](docs/design/03-roadmap.md)).
+points.** The Feeder now produces CI meal artifacts without an agent, with independent wiki
+snapshots and enforced strict mode. These features are unreleased; see the
+[roadmap](docs/design/03-roadmap.md) and [Feeder guide](docs/feeder.md).
 
 ## The metaphor, in five words
 
