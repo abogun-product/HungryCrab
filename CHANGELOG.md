@@ -27,12 +27,6 @@ tracked in [docs/design/03-roadmap.md](docs/design/03-roadmap.md); this file tra
   recognise them. Strict maws downgrade COPY code to clean-room REIMPLEMENT while configurations
   and templates stay copyable, with the policy reason in menu and issue traces.
 
-### Feeder fixes
-
-- Cached catches honour changed history options and validate dates before mutation (#230).
-  Replacements are staged so a failed clone preserves the previous valid cache. README and
-  agent-file outlines share a fence-aware heading parser (#193).
-
 - **Digest coverage is two numbers, and one of them is a gate.** `files_counted / files` could
   not tell a sample corpus the crab skipped on purpose from prey it failed to read, and it
   moved when somebody ran `npm ci`. The inventory now records a `coverage` block, lifted into
@@ -202,6 +196,10 @@ tracked in [docs/design/03-roadmap.md](docs/design/03-roadmap.md); this file tra
   Installs track `master`; a release tag is opt-in.
 
 ### Fixed
+
+- Cached catches honour changed history options and validate dates before mutation (#230).
+  Replacements are staged so a failed clone preserves the previous valid cache. README and
+  agent-file outlines share a fence-aware heading parser (#193).
 
 - **A COPY receipt answers to the licence of each file it takes, and a pull request never drops
   a receipt.** A receipt could take any path of the prey and record it under the repository's

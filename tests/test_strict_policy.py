@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from hungry_crab.compare import CompareOptions, compare_digests, menu_candidates
 from hungry_crab.digest import DigestResult
+from hungry_crab.errors import CrabError
+from hungry_crab.ledger import Ledger
 from hungry_crab.licensing.policy import apply_maw_policy, nutrient_material
+from hungry_crab.maw import MawConfig
 from hungry_crab.nutrients import Candidate, Evidence
-from hungry_crab.serve import render_issue
+from hungry_crab.serve import ServeOptions, render_issue, serve
 
 
 @pytest.mark.parametrize("mode", ["HUMAN", "IDEAS_ONLY", "REIMPLEMENT", "COPY_FILE"])
@@ -19,6 +24,7 @@ def test_strict_policy_retains_configs_and_templates() -> None:
         assert apply_maw_policy("COPY", policy="strict", material=material) == ("COPY", "")
     assert nutrient_material("ci", [".github/workflows/ci.yml"]) == "configuration"
     assert nutrient_material("tests", ["tests/test_core.py"]) == "code"
+    assert nutrient_material("tests", ["vitest.config.ts"]) == "configuration"
     assert nutrient_material("future-category", []) == "code"
 
 
@@ -66,3 +72,13 @@ def test_same_prey_strict_and_normal_modes_reach_menu_and_issue(
     assert code.material == "code" and strict.menu["mode"] == "strict"
     _, body = render_issue(code, strict.menu)
     assert "REIMPLEMENT" in body and "strict maw policy" in body
+
+
+def test_serve_refuses_a_menu_made_before_strict_was_enabled(tmp_path: Path) -> None:
+    meal = tmp_path / "meal"
+    meal.mkdir()
+    (meal / "menu.json").write_text('{"mode":"normal","candidates":[]}', encoding="utf-8")
+    config = MawConfig(root=tmp_path, mode="strict")
+    ledger = Ledger.load(None, maw="maw")
+    with pytest.raises(CrabError, match="strict policy"):
+        serve(meal, tmp_path, ServeOptions(), config=config, ledger=ledger)

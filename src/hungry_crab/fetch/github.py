@@ -10,6 +10,7 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
+import uuid
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
@@ -132,17 +133,21 @@ class GitHubClient:
                             "modified": response.headers.get("Last-Modified"),
                         }
                         cache_file.parent.mkdir(parents=True, exist_ok=True)
-                        temporary = cache_file.with_suffix(".tmp")
-                        temporary.write_text(json.dumps(entry), encoding="utf-8")
-                        temporary.replace(cache_file)
+                        temporary = cache_file.with_name(f".{key}-{uuid.uuid4().hex}.tmp")
+                        try:
+                            temporary.write_text(json.dumps(entry), encoding="utf-8")
+                            temporary.replace(cache_file)
+                        finally:
+                            temporary.unlink(missing_ok=True)
                     return data
             except urllib.error.HTTPError as exc:
+                error_body = exc.read(4096) if exc.code == 403 else b""
                 exc.close()
                 if exc.code == 304 and cached:
                     return cached["body"]
                 if exc.code == 404 and allow_missing:
                     return None
-                delay = retry_delay(exc, attempt)
+                delay = retry_delay(exc, attempt, error_body=error_body)
                 if delay is not None and attempt < self.retries and delay <= self.max_wait:
                     time.sleep(delay)
                     continue
@@ -161,7 +166,9 @@ class GitHubClient:
         raise AssertionError("unreachable")
 
 
-def retry_delay(error: urllib.error.HTTPError, attempt: int) -> float | None:
+def retry_delay(
+    error: urllib.error.HTTPError, attempt: int, *, error_body: bytes = b""
+) -> float | None:
     """Respect server delays; never retry ordinary permission or validation errors."""
     headers = error.headers
     retry_after = headers.get("Retry-After")
@@ -175,9 +182,12 @@ def retry_delay(error: urllib.error.HTTPError, attempt: int) -> float | None:
                 return None
     if error.code in (403, 429) and headers.get("X-RateLimit-Remaining") == "0":
         try:
-            return max(0.0, float(headers.get("X-RateLimit-Reset", "0")) - time.time()) + 1
+            reset = headers.get("X-RateLimit-Reset")
+            return max(0.0, float(reset) - time.time()) + 1 if reset else float(60 * 2**attempt)
         except ValueError:
             return None
+    if error.code == 403 and b"secondary rate limit" in error_body.lower():
+        return float(60 * 2**attempt)
     if error.code == 429:
         return float(60 * 2**attempt)
     if error.code in (500, 502, 503, 504):

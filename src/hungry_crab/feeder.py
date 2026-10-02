@@ -65,6 +65,12 @@ def _check_digest(path: Path, *, allow_loss: bool) -> dict[str, Any]:
             "Feeder did not see the whole tree",
             hint="inspect digest coverage or explicitly pass --allow-loss",
         )
+    wiki = json.loads((path / "wiki.json").read_text(encoding="utf-8"))
+    if not allow_loss and wiki.get("coverage", {}).get("healthy") is not True:
+        raise CrabError(
+            "Feeder did not see the whole wiki",
+            hint="inspect wiki.json coverage or explicitly pass --allow-loss",
+        )
     return data
 
 
@@ -93,15 +99,26 @@ def eat(
     if opts.since:
         parse_since(opts.since, now=opts.now)
     config = MawConfig.load(maw)
-    root = opts.cache_root or cache_root()
+    root = (opts.cache_root or cache_root()).resolve()
+    if root.is_relative_to(maw):
+        raise UsageError("Feeder cache must be outside the maw repository")
     if opts.out and opts.out.is_symlink():
         raise UsageError("Feeder output must not be a symlink")
     out = (opts.out or maw_paths(maw, root).root / "feeds" / uuid.uuid4().hex).resolve()
     # Exporting onto a source tree, cache clone or existing bundle would destroy evidence.
-    protected = [maw, root]
+    protected = [maw]
     if prey.path:
         protected.append(prey.path.resolve())
-    if any(path == out or path.is_relative_to(out) for path in protected):
+    elif prey.slug:
+        protected.append(prey_paths(prey.slug, root).repo.resolve())
+    if (
+        root == out
+        or root.is_relative_to(out)
+        or any(
+            path == out or path.is_relative_to(out) or out.is_relative_to(path)
+            for path in protected
+        )
+    ):
         raise UsageError("Feeder output must not contain a source repository or the cache")
     if out.exists() and (not out.is_dir() or any(out.iterdir())):
         raise UsageError(f"Feeder output {out} is not empty", hint="choose a new --out directory")
@@ -147,9 +164,7 @@ def eat(
             if info.get("has_wiki"):
                 path = prey_paths(slug, root).wiki
                 path.parent.mkdir(parents=True, exist_ok=True)
-                wiki = catch_wiki(
-                    path, slug.clone_url.replace(".git", ".wiki.git"), log=log, token=client.token
-                )
+                wiki = catch_wiki(path, slug.wiki_clone_url, log=log, token=client.token)
                 if wiki["status"] == "available":
                     maw_wiki = path
     result, prey_digest, _, _ = compare_for_maw(

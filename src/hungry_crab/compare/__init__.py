@@ -163,6 +163,8 @@ def compare_digests(
             "maw_mode": opts.mode,
             "material": candidate.material,
             "maw_policy_reason": candidate.license_policy_reason,
+            "prey_wiki_sha": prey.manifest.get("wiki", {}).get("sha"),
+            "maw_wiki_sha": maw.manifest.get("wiki", {}).get("sha"),
         }
     candidates, hidden = apply_hunger(candidates, opts.hunger)
     still: list[Candidate] = []

@@ -160,7 +160,7 @@ def catch(
     if opts.wiki and (source_url is None or wiki_source_url is not None):
         wiki_info = catch_wiki(
             paths.wiki,
-            wiki_source_url or slug.clone_url.replace(".git", ".wiki.git"),
+            wiki_source_url or slug.wiki_clone_url,
             log=log,
             token=token,
         )

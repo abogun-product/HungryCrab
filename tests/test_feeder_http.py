@@ -121,3 +121,28 @@ def test_missing_optional_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(urllib.request, "urlopen", open_url)
     assert GitHubClient(prefer_gh=False).get("repos/a/b", allow_missing=True) is None
+
+
+def test_secondary_rate_limit_without_retry_after_waits_a_minute(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+    sleeps: list[float] = []
+
+    def open_url(request: object, **kwargs: object) -> Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise urllib.error.HTTPError(
+                "https://api.github.com/repos/a/b",
+                403,
+                "limited",
+                Message(),
+                io.BytesIO(b'{"message":"secondary rate limit"}'),
+            )
+        return Response({"ok": True})
+
+    monkeypatch.setattr(urllib.request, "urlopen", open_url)
+    monkeypatch.setattr("hungry_crab.fetch.github.time.sleep", sleeps.append)
+    assert GitHubClient(prefer_gh=False).get("repos/a/b") == {"ok": True}
+    assert calls == 2 and sleeps == [60]

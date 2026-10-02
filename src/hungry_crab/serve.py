@@ -710,6 +710,11 @@ def serve(
     menu = load_menu(meal_dir)
     if menu is None:
         raise CrabError("no menu to serve from", hint="run `crab compare <prey> --maw .` first")
+    if config.mode == "strict" and menu.get("mode") != "strict":
+        raise CrabError(
+            "this menu predates the maw's strict policy",
+            hint="run `crab compare <prey> --maw .` again before serving",
+        )
     if options.mode == "issue" and config.serve.issues == "off":
         raise CrabError("serve.issues is off in .crab.yml", hint="set serve.issues to ask or auto")
     cards, skipped = select_cards(menu, options, ledger)

@@ -11,6 +11,8 @@ from hungry_crab.compare import CompareOptions, compare_digests
 from hungry_crab.digest import DigestOptions, run_digest
 from hungry_crab.fetch.catch import catch
 from hungry_crab.fetch.git import GitRunner
+from hungry_crab.miners.ai_config import _headings
+from hungry_crab.miners.docs import readme_outline
 from hungry_crab.miners.wiki import markdown_headings
 
 
@@ -40,6 +42,31 @@ def test_headings_exclude_code_and_comments() -> None:
         "<!--\n# hidden\n-->\n\nUsage\n=====\n\n## API\n"
     )
     assert [h["text"] for h in headings] == ["Title", "Usage", "API"]
+
+
+def test_readme_and_agent_outlines_share_the_same_structure_filter() -> None:
+    text = "---\nname: private-value\n---\n# Tool\n\n## Install\n\n```bash\n# run the tests\n```\n"
+    assert _headings(text) == ["Tool", "Install"]
+    outline = readme_outline(text)
+    assert [h["title"] for h in outline["headings"]] == ["Tool", "Install"]
+    assert outline["sections"] == ["install"]
+
+
+def test_wiki_cap_is_visible_and_feeder_refuses_it(
+    npm_app: Path, wiki: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hungry_crab.errors import CrabError
+    from hungry_crab.feeder import _check_digest
+
+    monkeypatch.setattr("hungry_crab.miners.wiki.MAX_PAGES", {"normal": 1, "deep": 1})
+    result = run_digest(
+        Target(path=npm_app), DigestOptions(out=tmp_path / "digest", wiki_path=wiki)
+    )
+    data = json.loads((result.out_dir / "wiki.json").read_text())
+    assert data["coverage"]["truncated"] and not data["coverage"]["healthy"]
+    with pytest.raises(CrabError, match="whole wiki"):
+        _check_digest(result.out_dir, allow_loss=False)
+    assert _check_digest(result.out_dir, allow_loss=True)
 
 
 @pytest.mark.parametrize("fixture", ["npm-app", "pyproject-cli", "dotnet-lib"])

@@ -7,16 +7,18 @@ from pathlib import Path
 from typing import Any
 
 from ..fetch.git import GitRunner
-from ..fs import read_text
 from ..mdutil import MdDoc
 from ..safety import is_suspicious
 from .base import MineContext, MinerResult
 
 PAGE_EXTENSIONS = {".md", ".markdown", ".rst", ".textile", ".asciidoc", ".org", ".mediawiki"}
+MAX_PAGES = {"normal": 2_000, "deep": 10_000}
+MAX_PAGE_BYTES = 2 * 1024 * 1024
 
 
 def markdown_headings(text: str) -> list[dict[str, object]]:
     """ATX and setext headings outside fenced/indented code and HTML comments."""
+    text = re.sub(r"\A---\s*\n.*?\n(?:---|\.\.\.)\s*(?:\n|\Z)", "", text, flags=re.DOTALL)
     text = re.sub(r"<!--.*?(?:-->|\Z)", "", text, flags=re.DOTALL)
     headings: list[dict[str, object]] = []
     fence = ""
@@ -72,6 +74,12 @@ class WikiMiner:
             "page_count": 0,
             "bytes": 0,
             "available": False,
+            "coverage": {
+                "healthy": True,
+                "truncated": False,
+                "oversized_pages": [],
+                "unreadable_pages": [],
+            },
         }
         pages: list[dict[str, Any]] = []
         root = ctx.wiki_root
@@ -86,7 +94,20 @@ class WikiMiner:
                     continue
                 if not path.is_file() or not path.resolve().is_relative_to(root.resolve()):
                     continue
-                text = read_text(path, limit=500_000)
+                if len(pages) >= MAX_PAGES[ctx.depth]:
+                    data["coverage"].update(healthy=False, truncated=True)
+                    break
+                try:
+                    with path.open("rb") as handle:
+                        raw = handle.read(MAX_PAGE_BYTES + 1)
+                except OSError:
+                    data["coverage"]["healthy"] = False
+                    data["coverage"]["unreadable_pages"].append(name)
+                    raw = b""
+                if len(raw) > MAX_PAGE_BYTES:
+                    data["coverage"]["healthy"] = False
+                    data["coverage"]["oversized_pages"].append(name)
+                text = raw[:MAX_PAGE_BYTES].decode("utf-8-sig", errors="replace")
                 headings = (
                     markdown_headings(text) if path.suffix.lower() in (".md", ".markdown") else []
                 )
@@ -128,4 +149,9 @@ class WikiMiner:
             doc.section(str(page["path"]), priority=2).bullets(
                 f"H{heading['level']}: {heading['text']}" for heading in page["headings"]
             )
-        return MinerResult(self.name, data, doc)
+        warnings = (
+            []
+            if data["coverage"]["healthy"]
+            else ["wiki visibility loss: inspect wiki.json coverage"]
+        )
+        return MinerResult(self.name, data, doc, warnings=warnings)
