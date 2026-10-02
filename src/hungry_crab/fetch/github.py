@@ -141,7 +141,10 @@ class GitHubClient:
                             temporary.unlink(missing_ok=True)
                     return data
             except urllib.error.HTTPError as exc:
-                error_body = exc.read(4096) if exc.code == 403 else b""
+                try:
+                    error_body = exc.read(4096) if exc.code == 403 else b""
+                except OSError:
+                    error_body = b""
                 exc.close()
                 if exc.code == 304 and cached:
                     return cached["body"]

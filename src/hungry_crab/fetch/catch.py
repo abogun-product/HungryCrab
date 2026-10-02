@@ -53,6 +53,7 @@ class CatchResult:
     caught_at: str
     issues_fetched: int = 0
     wiki: dict[str, object] | None = None
+    history_window_applied: bool | None = None
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -127,6 +128,7 @@ def catch(
         except (OSError, ValueError):
             pass
     policy_changed = previous.get("clone_policy") != clone_args
+    history_window_applied = True if opts.since else None
     if (repo_dir / ".git").exists() and not opts.force and not policy_changed:
         log(f"refreshing {slug} in {repo_dir}")
         git = GitRunner(repo_dir, github_token=token)
@@ -137,7 +139,15 @@ def catch(
             fetch_args += ["--depth=1"]
         else:
             fetch_args += ["--tags"]
-        git.run(*fetch_args)
+        try:
+            git.run(*fetch_args)
+        except ExternalCommandError as exc:
+            if opts.shallow and opts.since and "no commits selected" in exc.message.lower():
+                git.run("fetch", "--quiet", "--all", "--prune", "--force", "--depth=1")
+                history_window_applied = False
+                log("history window has no commits; refreshed a depth-1 tree snapshot instead")
+            else:
+                raise
         branch = git.default_branch()
         if git.ok("rev-parse", "--verify", "-q", f"refs/remotes/origin/{branch}"):
             git.run("checkout", "--quiet", "-B", branch, f"origin/{branch}")
@@ -152,6 +162,7 @@ def catch(
                 _clone_replace(
                     repo_dir, url, clone_arguments(CatchOptions(shallow=True)), token=token
                 )
+                history_window_applied = False
             else:
                 raise
         git = GitRunner(repo_dir)
@@ -184,6 +195,7 @@ def catch(
         caught_at=(now or datetime.now(UTC)).isoformat(timespec="seconds"),
         issues_fetched=issues_fetched,
         wiki=wiki_info,
+        history_window_applied=history_window_applied,
     )
     recorded = {**result.to_dict(), "clone_policy": clone_args}
     paths.catch_file.write_text(json.dumps(recorded, indent=2) + "\n", encoding="utf-8")

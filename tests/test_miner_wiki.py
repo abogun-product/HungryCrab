@@ -42,6 +42,7 @@ def test_headings_exclude_code_and_comments() -> None:
         "<!--\n# hidden\n-->\n\nUsage\n=====\n\n## API\n"
     )
     assert [h["text"] for h in headings] == ["Title", "Usage", "API"]
+    assert markdown_headings("````\n```python\n# private comment\n````\n") == []
 
 
 def test_readme_and_agent_outlines_share_the_same_structure_filter() -> None:

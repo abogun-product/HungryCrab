@@ -24,8 +24,9 @@ tree snapshot. A changed catch policy is applied to an existing cache too. `--wi
 supplies an independent local Git wiki checkout for local fixtures.
 
 Both digests are regenerated after evidence refresh. Failed/blocked miners fail the job;
-inventory visibility loss fails unless `--allow-loss` is explicit. Failed runs never export
-a success bundle. Markdown budgets follow the maw's `.crab.yml`: `warn`, `enforce` or `off`;
+inventory or wiki visibility loss fails unless `--allow-loss` is explicit. Failed runs never export
+a success bundle. Wiki reads cap page counts and page bytes, recording any loss. Markdown
+budgets follow the maw's `.crab.yml`: `warn`, `enforce` or `off`;
 full JSON survives an enforced reading budget.
 
 GitHub's repository `size` must fit `--max-repo-kb` (307200 by default) before cloning.

@@ -21,11 +21,16 @@ def run() -> int:
     maw = Path(os.environ.get("CRAB_MAW", "."))
     if not maw.is_absolute():
         maw = workspace / maw
+    prey = os.environ["CRAB_PREY"]
+    # uv runs in the trusted action checkout; local prey paths belong to the caller workspace.
+    local_prey = workspace / Path(prey).expanduser()
+    if local_prey.is_dir():
+        prey = str(local_prey.resolve())
     args = [
         "--cache-dir",
         cache,
         "eat",
-        os.environ["CRAB_PREY"],
+        prey,
         "--deterministic",
         "--maw",
         str(maw),

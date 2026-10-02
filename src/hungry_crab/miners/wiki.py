@@ -30,7 +30,11 @@ def markdown_headings(text: str) -> list[dict[str, object]]:
             value = marker.group(1)
             if not fence:
                 fence, fence_length = value[0], len(value)
-            elif value[0] == fence and len(value) >= fence_length:
+            elif (
+                value[0] == fence
+                and len(value) >= fence_length
+                and not line[marker.end() :].strip()
+            ):
                 fence = ""
             previous = ""
             continue

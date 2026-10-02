@@ -141,3 +141,17 @@ def test_invalid_since_and_failed_reclone_preserve_last_valid_clone(
     assert prey_paths(slug, cache).catch_file.read_bytes() == metadata
     assert (prey_paths(slug, cache).repo / "package.json").is_file()
     assert len(first.sha) == 40
+
+
+def test_stale_prey_uses_a_tree_snapshot_on_clone_and_refresh(
+    npm_app: Path, tmp_path: Path
+) -> None:
+    slug = Slug("example", "stale")
+    opts = CatchOptions(shallow=True, since="90d")
+    now = datetime(2026, 10, 2, tzinfo=UTC)
+    cache = tmp_path / "cache"
+    first = catch(slug, opts, cache_root=cache, source_url=npm_app.as_uri(), now=now)
+    assert first.shallow and first.history_window_applied is False
+    second = catch(slug, opts, cache_root=cache, source_url=npm_app.as_uri(), now=now)
+    assert second.updated and second.sha == first.sha
+    assert second.history_window_applied is False
