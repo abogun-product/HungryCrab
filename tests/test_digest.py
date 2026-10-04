@@ -10,6 +10,7 @@ from helpers import read_json, read_md, write_tree
 
 from hungry_crab.cache import Target
 from hungry_crab.digest import MD_BUDGET, SCHEMA, DigestOptions, DigestResult, run_digest
+from hungry_crab.errors import CrabError
 from hungry_crab.miners import ALL_MINERS, MINER_NAMES, select_miners
 from hungry_crab.tokens import estimate_tokens
 
@@ -243,7 +244,7 @@ def test_explicit_output_rerun_replaces_only_previous_manifest_owned_files(
     npm_app: Path, tmp_path: Path
 ) -> None:
     out = tmp_path / "docs"
-    first = run_digest(Target(path=npm_app), DigestOptions(out=out, now=FIXED_NOW))
+    run_digest(Target(path=npm_app), DigestOptions(out=out, now=FIXED_NOW))
     assert (out / "architecture.md").is_file()
     stranger = out / "notes.md"
     stranger.write_bytes(b"caller data\n")
