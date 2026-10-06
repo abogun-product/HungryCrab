@@ -255,7 +255,10 @@ def _previous_explicit_output_ownership(out_dir: Path) -> set[str]:
     and the current on-disk artifacts must still satisfy the manifest's integrity contract.
     Otherwise the directory is treated as caller-owned and publication may only add new names.
     """
-    manifest = _load_json(out_dir / MANIFEST_NAME)
+    manifest_path = out_dir / MANIFEST_NAME
+    if manifest_path.is_symlink():
+        return set()
+    manifest = _load_json(manifest_path)
     if manifest is None or manifest.get("schema") != SCHEMA:
         return set()
     entries = manifest.get("files")
@@ -263,18 +266,27 @@ def _previous_explicit_output_ownership(out_dir: Path) -> set[str]:
     if not isinstance(entries, list) or not isinstance(records, list):
         return set()
 
-    entry_names = {
-        str(entry.get("name"))
-        for entry in entries
-        if isinstance(entry, dict) and isinstance(entry.get("name"), str)
-    }
-    record_names = {
-        name
-        for record in records
-        if isinstance(record, dict)
-        for name in record.get("files", [])
-        if isinstance(name, str)
-    }
+    entry_names: set[str] = set()
+    for entry in entries:
+        if not isinstance(entry, dict) or not isinstance(entry.get("name"), str):
+            return set()
+        name = entry["name"]
+        if name in entry_names:
+            return set()
+        entry_names.add(name)
+    record_names: set[str] = set()
+    for record in records:
+        if not isinstance(record, dict) or not isinstance(record.get("files"), list):
+            return set()
+        for name in record["files"]:
+            if (
+                not isinstance(name, str)
+                or record.get("ok") is not True
+                or artifact_owner(name) != record.get("name")
+                or name in record_names
+            ):
+                return set()
+            record_names.add(name)
     if entry_names != record_names:
         return set()
     if len({name.casefold() for name in entry_names}) != len(entry_names):
@@ -319,17 +331,19 @@ def _publish_explicit_output(staged: Path, destination: Path) -> None:
         folded = name.casefold()
         other = staged_by_fold.get(folded)
         if other is not None and other != name:
-            raise CrabError(f"explicit digest has a case-insensitive name collision: {other}, {name}")
+            raise CrabError(
+                f"explicit digest has a case-insensitive name collision: {other}, {name}"
+            )
         staged_by_fold[folded] = name
 
     existing_by_fold: dict[str, Path] = {}
     for path in destination.iterdir():
         folded = path.name.casefold()
-        other = existing_by_fold.get(folded)
-        if other is not None and other.name != path.name:
+        other_path = existing_by_fold.get(folded)
+        if other_path is not None and other_path.name != path.name:
             raise CrabError(
                 f"explicit digest destination has a case-insensitive name collision: "
-                f"{other.name}, {path.name}"
+                f"{other_path.name}, {path.name}"
             )
         existing_by_fold[folded] = path
 
