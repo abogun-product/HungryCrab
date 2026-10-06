@@ -77,6 +77,35 @@ def test_case_collisions_and_custom_protection_are_rejected(loop: Loop) -> None:
         check_paths(loop, ["src/licensing/rules.py"])
 
 
+def test_loop_phase_branch_equal_to_default_refuses_before_fetch_or_push(
+    loop: Loop, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    class Git:
+        def toplevel(self) -> Path:
+            return loop.maw
+
+        def run(self, *args: str) -> str:
+            calls.append(args)
+            return "https://github.com/example/maw.git\n"
+
+    force_phase(loop, "molt", prs=[landed()])
+    ready = loop.next()
+    monkeypatch.setattr("hungry_crab.loop_work.GitRunner", lambda _: Git())
+    with pytest.raises(CrabError, match="default branch"):
+        publish(
+            loop,
+            ready["active"]["token"],
+            SHA,
+            "refactor: molt",
+            "Molt body",
+            {},
+            lambda *_: loop.branch(loop._load()),
+        )
+    assert calls == [("remote", "get-url", "--push", "--all", "origin")]
+
+
 @pytest.mark.parametrize(
     "damage",
     [

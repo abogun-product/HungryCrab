@@ -302,6 +302,9 @@ def publish(
         if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", head):
             raise CrabError("loop publish requires an immutable commit SHA")
         base = run("api", f"repos/{loop.slug}", "--jq", ".default_branch").strip()
+        branch = loop.branch(data)
+        if branch == base:
+            raise CrabError("refusing to publish a loop phase to the maw's default branch")
         git.run("check-ref-format", "--branch", base)
         git.run("fetch", "--no-tags", "origin", f"refs/heads/{base}")
         base_sha = git.run("rev-parse", "FETCH_HEAD").strip()
@@ -331,7 +334,6 @@ def publish(
         if findings:
             raise CrabError(format_publication_findings(findings))
         existing = loop._provider().find_pr(marker)
-        branch = loop.branch(data)
         tree = git.run("rev-parse", f"{head}^{{tree}}").strip()
         if existing is None:
             _, prs = loop._provider().counts()
