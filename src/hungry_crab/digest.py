@@ -251,9 +251,9 @@ def _previous_explicit_output_ownership(out_dir: Path) -> set[str]:
     """Names a previous valid digest proves the crab owns in an explicit output directory.
 
     A filename alone is never ownership evidence. The previous manifest must agree with the
-    successful producer records, every claimed name must be a flat registered digest artifact,
-    and the current on-disk artifacts must still satisfy the manifest's integrity contract.
-    Otherwise the directory is treated as caller-owned and publication may only add new names.
+    successful producer records and every claimed name must be a flat registered digest artifact.
+    Artifact damage invalidates reuse, not ownership: a rerun can still repair a missing or corrupt
+    artifact listed by a structurally valid manifest. Malformed ownership records grant no rights.
     """
     manifest_path = out_dir / MANIFEST_NAME
     if manifest_path.is_symlink():
@@ -299,8 +299,6 @@ def _previous_explicit_output_ownership(out_dir: Path) -> set[str]:
         or artifact_owner(name) is None
         for name in entry_names
     ):
-        return set()
-    if digest_integrity_errors(out_dir, manifest):
         return set()
     return entry_names | {MANIFEST_NAME}
 
