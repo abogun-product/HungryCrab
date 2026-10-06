@@ -289,14 +289,13 @@ def _previous_explicit_output_ownership(out_dir: Path) -> set[str]:
         for name in record["files"]:
             if (
                 not isinstance(name, str)
-                or record.get("ok") is not True
                 or artifact_owner(name) != record.get("name")
                 or name in record_names
             ):
                 return set()
             record_names.add(name)
-    # A missing producer record invalidates reuse, but the manifest's artifact table still
-    # records ownership. Keep repair possible without claiming an unlisted caller file.
+    # Missing/failed producers invalidate reuse, but the artifact table still records historical
+    # ownership. Keep repair possible without claiming an unlisted caller file.
     if not record_names <= entry_names:
         return set()
     if len({name.casefold() for name in entry_names}) != len(entry_names):
