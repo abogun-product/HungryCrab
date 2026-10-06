@@ -250,8 +250,8 @@ def _write_json(path: Path, data: dict[str, Any]) -> None:
 def _previous_explicit_output_ownership(out_dir: Path) -> set[str]:
     """Names a previous valid digest proves the crab owns in an explicit output directory.
 
-    A filename alone is never ownership evidence. The previous manifest must agree with the
-    successful producer records and every claimed name must be a flat registered digest artifact.
+    A filename alone is never ownership evidence. The previous manifest must name registered
+    producers for its artifacts and agree with every producer record it still contains.
     Artifact damage invalidates reuse, not ownership: a rerun can still repair a missing or corrupt
     artifact listed by a structurally valid manifest. Malformed ownership records grant no rights.
     """
@@ -271,7 +271,15 @@ def _previous_explicit_output_ownership(out_dir: Path) -> set[str]:
         if not isinstance(entry, dict) or not isinstance(entry.get("name"), str):
             return set()
         name = entry["name"]
-        if name in entry_names:
+        size = entry.get("bytes")
+        if (
+            name in entry_names
+            or artifact_owner(name) is None
+            or artifact_owner(name) != entry.get("miner")
+            or not isinstance(size, int)
+            or isinstance(size, bool)
+            or size < 0
+        ):
             return set()
         entry_names.add(name)
     record_names: set[str] = set()
@@ -287,7 +295,9 @@ def _previous_explicit_output_ownership(out_dir: Path) -> set[str]:
             ):
                 return set()
             record_names.add(name)
-    if entry_names != record_names:
+    # A missing producer record invalidates reuse, but the manifest's artifact table still
+    # records ownership. Keep repair possible without claiming an unlisted caller file.
+    if not record_names <= entry_names:
         return set()
     if len({name.casefold() for name in entry_names}) != len(entry_names):
         return set()
