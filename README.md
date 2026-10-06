@@ -169,6 +169,8 @@ below.
 - `attribution_file`: the notice file for copied sources, rendered by `crab attribution` from the receipts in `.crab/attributions.json` that `crab serve --as pr-branch` writes when it carries prey files in; `crab attribution --check` is the CI gate. The file is headings and paragraphs, plus the source's licence and NOTICE texts in fenced blocks, so that a Markdown formatter's defaults leave it alone; if yours rewrites it anyway, exclude the file from the formatter, not from the check.
 - `ledger`: store meal history in the repository, cache, or nowhere.
 - `scoring`: per-section overrides for `data/scoring.yml`; `crab tune` can suggest them.
+- `loop`: scheduled phase policy, owner work consent, fixed prey, budgets and recovery limits;
+  see [Scheduled Crab](docs/scheduled-crab.md).
 
 This is the current commented template written by `crab init`:
 
@@ -218,6 +220,16 @@ attribution_file: THIRD_PARTY_NOTICES.md
                            # `crab serve --as pr-branch` writes when it carries prey files in.
 ledger: repo               # repo (.crab/ledger.json, committed) | cache | none
 scoring: {}                # overrides for data/scoring.yml sections; `crab tune` suggests them
+loop:
+  cadence: daily           # cadence belongs to your scheduler; the CLI never starts one
+  autonomy: serve          # read | serve | work; merging always belongs to a human
+  work_authorized: false   # the maw owner must explicitly authorize work, including tags
+  prey: []                 # fixed owner/repo list; HUNT selects at most three from this list
+  budget:
+    phases_per_day: 4
+    prey_per_round: 2
+    open_issues_max: 10
+    open_prs_max: 2
 ```
 
 ## What the miners extract

@@ -197,6 +197,7 @@ class Loop:
     def _load(self) -> dict[str, Any]:
         safe_parent(self.path)
         data = read_json(self.path)
+        data.setdefault("revisions", {})
         if data.get("schema") != LOOP_SCHEMA:
             raise CrabError("unsupported loop schema; preserve the file and upgrade explicitly")
         if (
@@ -207,6 +208,13 @@ class Loop:
             raise CrabError("loop state belongs to a different maw or control repository")
         try:
             _require(data["phase"] in PHASES)
+            _require(
+                isinstance(data["revisions"], dict)
+                and all(
+                    isinstance(key, str) and type(value) is int and value >= 0
+                    for key, value in data["revisions"].items()
+                )
+            )
             for field in ("round", "attempt", "phases_today", "prey_index"):
                 _require(type(data[field]) is int and data[field] >= (1 if field == "round" else 0))
             _require(type(data["paused"]) is bool)
@@ -286,6 +294,7 @@ class Loop:
                 "issues": [],
                 "meals": [],
                 "notes": "",
+                "revisions": {},
             }
             self._save(data)
             return self._view(data)
@@ -358,7 +367,12 @@ class Loop:
         return self._view(self._load())
 
     def marker(self, data: dict[str, Any]) -> str:
-        return f"<!-- crab:loop:{self.key}:{data['round']}:{data['phase']} -->"
+        revision = data["revisions"].get(f"{data['round']}:{data['phase']}", 0)
+        return f"<!-- crab:loop:{self.key}:{data['round']}:{data['phase']}:{revision} -->"
+
+    def branch(self, data: dict[str, Any]) -> str:
+        revision = data["revisions"].get(f"{data['round']}:{data['phase']}", 0)
+        return f"crab/loop/{self.key}/r{data['round']}/{data['phase']}-v{revision}"
 
     def _reconcile(self, data: dict[str, Any]) -> None:
         waiting = data["waiting_on"]
@@ -644,10 +658,12 @@ class Loop:
             if result == "ok":
                 self._accept(data, payload)
             elif result == "skip":
-                if not note.strip() or phase in {"crave", "hunt", "eat", "trial", "taste"}:
+                if not note.strip() or phase in {"crave", "hunt", "eat", "taste"}:
                     raise CrabError(
                         "this phase needs evidence; skip needs a reason and an optional phase"
                     )
+                if phase == "trial":
+                    self._drop_grow(data, _text(payload, "drop_pr"), note)
                 if any(
                     pr["round"] == data["round"]
                     and pr["phase"] == phase
@@ -695,12 +711,43 @@ class Loop:
             self._save(data)
             return self._view(data)
 
-    def acknowledge(self, *, skip_work: bool = False) -> dict[str, Any]:
+    def _drop_grow(self, data: dict[str, Any], url: str, note: str) -> None:
+        pr = next(
+            (
+                row
+                for row in data["prs"]
+                if row["round"] == data["round"] and row["phase"] == "grow" and row["url"] == url
+            ),
+            None,
+        )
+        if pr is None:
+            raise CrabError("drop requires this round's GROW pull request")
+        truth = self._provider().artifact(url)
+        if truth.get("merged_at") or truth["head"]["sha"] != pr["sha"]:
+            raise CrabError("cannot drop a merged or changed GROW head")
+        if truth.get("state") == "open":
+            self._provider().close_pr(url)
+        pr["state"] = "closed"
+        data["notes"] += f"\nDropped GROW {url}: {note}"
+        data["waiting_on"] = None
+
+    def acknowledge(self, *, skip_work: bool = False, drop_pr: str | None = None) -> dict[str, Any]:
         """A human-only recovery command; the phase skill must never call it."""
         with state_lock(self.path):
             data = self._load()
             if data["active"]:
                 raise CrabError("cannot acknowledge while a phase is leased")
+            if drop_pr:
+                if data["phase"] != "trial":
+                    raise CrabError("human drop is available at TRIAL only")
+                self._drop_grow(data, drop_pr, "human rejected implementation")
+                data["phase"] = "taste"
+            if data["phase"] == "harden" and any(
+                pr["round"] == data["round"] and pr["phase"] == "harden" and pr["state"] == "closed"
+                for pr in data["prs"]
+            ):
+                key = f"{data['round']}:harden"
+                data["revisions"][key] = data["revisions"].get(key, 0) + 1
             if skip_work:
                 if data["phase"] not in {"serve", "grow", "molt", "harden"} or self._landed(data):
                     raise CrabError("cannot skip required evidence or hardening of landed changes")
@@ -720,6 +767,7 @@ class Loop:
                     "result": "acknowledged",
                     "at": stamp(self.now),
                     "skip_work": skip_work,
+                    "drop_pr": drop_pr,
                     "wall_seconds": 0,
                     "tokens": None,
                     "cost_usd": None,

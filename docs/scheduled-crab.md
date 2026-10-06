@@ -77,6 +77,7 @@ crab loop pause                  # one-command kill switch inside the maw
 crab loop resume
 crab loop acknowledge           # human-only retry acknowledgement
 crab loop acknowledge --skip-work  # human ends implementation at a read/serve boundary
+crab loop acknowledge --drop-pr https://github.com/example/maw/pull/1  # reject a failed GROW
 crab loop metrics --json         # wall time and optional measured tokens/cost history
 ```
 
@@ -85,6 +86,10 @@ effects/recording; resume preserves an unexpired lease. Acknowledgement cannot d
 active lease or skip hardening of landed changes. Read stops before SERVE; serve stops before
 GROW. A human can skip implementation, then TASTE and empty MOLT/HARDEN finish the round.
 Subsequent rounds start at HUNT and use the last TASTE goal and lesson.
+TRIAL can record a reasoned skip with `{"drop_pr": "<recorded-GROW-URL>"}`; the CLI closes that
+unchanged, unmerged head and carries a lesson forward. A failed CI block can be dropped through
+human acknowledgement. A human acknowledgement after a closed release PR starts a new
+publication revision, retaining the previous attempt in history.
 
 ## Receipts and publication
 

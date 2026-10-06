@@ -186,10 +186,24 @@ def _molt(
     if not landed:
         raise CrabError("MOLT is skipped when this round landed nothing")
     checks = receipt.get("checks", {})
+    if not isinstance(checks, dict):
+        raise CrabError("MOLT checks must be an object")
     for key in ("lint_before", "lint_after", "coverage_before", "coverage_after"):
         value = checks.get(key)
-        if type(value) not in {int, float} or value < 0 or not math.isfinite(value):
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or value < 0
+            or not math.isfinite(value)
+        ):
             raise CrabError("MOLT requires measured before/after lint and coverage evidence")
+    if any(type(checks[key]) is not int for key in ("lint_before", "lint_after")) or any(
+        checks[key] > 100 for key in ("coverage_before", "coverage_after")
+    ):
+        raise CrabError("MOLT lint counts must be integers and coverage percentages must be <= 100")
+    unreachable = receipt.get("unreachable", {})
+    if not isinstance(unreachable, dict):
+        raise CrabError("MOLT unreachability evidence must be an object")
     if (
         checks.get("tests_passed") is not True
         or checks["lint_after"] > checks["lint_before"]
@@ -206,8 +220,8 @@ def _molt(
     for status, path in changes:
         if status == "D" and (
             path not in introduced
-            or not isinstance(receipt.get("unreachable", {}).get(path), str)
-            or not receipt["unreachable"][path].strip()
+            or not isinstance(unreachable.get(path), str)
+            or not unreachable[path].strip()
         ):
             raise CrabError(
                 "MOLT deletion needs a round-introduced path and unreachability evidence"
@@ -317,7 +331,7 @@ def publish(
         if findings:
             raise CrabError(format_publication_findings(findings))
         existing = loop._provider().find_pr(marker)
-        branch = f"crab/loop/{loop.key}/r{data['round']}/{phase}"
+        branch = loop.branch(data)
         tree = git.run("rev-parse", f"{head}^{{tree}}").strip()
         if existing is None:
             _, prs = loop._provider().counts()
@@ -382,7 +396,12 @@ def publish(
         ] + [pr]
         data["waiting_on"] = {"kind": "merge", "reason": f"waiting for human {phase.upper()} merge"}
         if phase == "harden":
-            loop._event(data, "published", "release PR awaits human merge", receipt)
+            loop._event(
+                data,
+                "published",
+                "release PR awaits human merge",
+                {**receipt, "url": url, "sha": pr["sha"]},
+            )
             data["active"] = None
             data["attempt"] = 0
         loop._save(data)

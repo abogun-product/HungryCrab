@@ -374,3 +374,50 @@ def test_cli_roundtrip_needs_no_provider_and_pause_has_no_required_flags(
     capsys.readouterr()
     assert main(["loop", "status", "--json"]) == 0
     assert json.loads(capsys.readouterr().out)["paused"]
+
+
+def test_trial_can_drop_an_unmerged_head_and_finish_an_empty_round(loop: Loop) -> None:
+    assert isinstance(loop.provider, Provider)
+    loop.provider.rows[URL] = artifact()
+    pr = {"round": 1, "phase": "grow", "url": URL, "sha": SHA, "state": "open", "files": []}
+    force_phase(loop, "trial", prs=[pr])
+    ready = loop.next()
+    result = loop.record(
+        ready["active"]["token"],
+        "trial",
+        "skip",
+        note="Local tests regress",
+        receipt={"drop_pr": URL},
+    )
+    assert result["phase"] == "taste" and result["prs"][0]["state"] == "closed"
+    assert loop.provider.rows[URL]["state"] == "closed"
+    assert "Local tests regress" in result["notes"]
+
+
+def test_human_drop_rejects_changed_head_and_closed_release_retry_gets_new_revision(
+    loop: Loop,
+) -> None:
+    assert isinstance(loop.provider, Provider)
+    loop.provider.rows[URL] = artifact(sha="b" * 40)
+    pr = {"round": 1, "phase": "grow", "url": URL, "sha": SHA, "state": "open", "files": []}
+    force_phase(loop, "trial", prs=[pr])
+    before = loop.path.read_bytes()
+    with pytest.raises(CrabError, match="changed"):
+        loop.acknowledge(drop_pr=URL)
+    assert loop.path.read_bytes() == before and loop.provider.rows[URL]["state"] == "open"
+    loop.provider.rows[URL] = artifact(ci="failure")
+    assert loop.acknowledge(drop_pr=URL)["phase"] == "taste"
+    force_phase(loop, "harden", prs=[{**pr, "phase": "harden", "state": "closed"}])
+    old = loop.marker(loop._load())
+    loop.acknowledge()
+    assert loop.marker(loop._load()) != old and loop.branch(loop._load()).endswith("-v1")
+
+
+@pytest.mark.parametrize("text", ['{"phase":"crave","phase":"hunt"}', '{"cost_usd": NaN}'])
+def test_json_duplicate_keys_and_nonfinite_values_are_refused(tmp_path: Path, text: str) -> None:
+    from hungry_crab.loop import read_json
+
+    path = tmp_path / "receipt.json"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(CrabError):
+        read_json(path)

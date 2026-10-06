@@ -47,6 +47,9 @@ def add_loop_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) ->
             command.add_argument("--receipt", type=Path)
         if name == "acknowledge":
             command.add_argument(
+                "--drop-pr", default=None, help="human rejection of this round's GROW PR"
+            )
+            command.add_argument(
                 "--skip-work",
                 action="store_true",
                 help="human decision to end a round without implementation",
@@ -102,7 +105,7 @@ def cmd_loop(args: argparse.Namespace) -> int:
     elif action in {"pause", "resume"}:
         result = loop.pause(action == "pause")
     elif action == "acknowledge":
-        result = loop.acknowledge(skip_work=args.skip_work)
+        result = loop.acknowledge(skip_work=args.skip_work, drop_pr=args.drop_pr)
     elif action == "serve":
         result = serve_phase(
             loop,
