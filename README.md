@@ -28,7 +28,7 @@ Somewhere out there is a repository that fixed your flaky CI two years ago, wrot
 you keep meaning to write, and learned the hard way which file breaks every single time anyone
 touches it. Reading it properly costs you an afternoon. Reading fifty of them costs you a month.
 
-The crab reads them for you. It drags the prey into a local cache, dissects it with thirteen
+The crab reads them for you. It drags the prey into a local cache, dissects it with fifteen
 deterministic miners, and boils a whole repository down to a digest small enough for an agent to
 actually read. Then it holds that digest against *your* repository and serves a ranked menu:
 what they have, what you lack, what it would cost you, and exactly what their license lets you
@@ -39,14 +39,14 @@ The prey is never executed. Not one line of its text reaches your issues unless 
 it may.
 
 **Status: [0.2.0 "Menu"](https://github.com/drevendev/HungryCrab/releases/latest) is the latest
-release; `master` is ahead of it by the 0.2.1 and 0.2.2 milestones — self-feeding, the licence
-resolutions and the menu benchmark — and by most of 0.3: the budget policy with paged
-documents, the two safety hooks, the clean-room protocol and pull-request serving for
-REIMPLEMENT nutrients and, with attribution receipts, for COPY. It is where the install below
-points.** The Feeder now produces CI meal artifacts without an agent, with independent wiki
-snapshots and enforced strict mode. Scheduled Crab adds persisted phases and guarded
-publication. These features are unreleased; see the [roadmap](docs/design/03-roadmap.md),
-[Feeder guide](docs/feeder.md) and [Scheduled Crab guide](docs/scheduled-crab.md).
+release; the development line is 0.4.0.dev0, "Deep Bite".** Feeder and Scheduled Crab provide
+deterministic meals and guarded publication. Deep Bite adds optional syntax indexes and
+symbol-backed code/architecture cards, Discussions, review comments, CI reliability evidence,
+eight dependency ecosystems and GitLab.com acquisition. B1 now includes a ranking pressure
+gate; B2 has a frozen, blinded experiment pipeline. Release and live acceptance evidence remain
+tracked separately. See the [roadmap](docs/design/03-roadmap.md),
+[Deep Bite guide](docs/deep-bite.md), [Feeder guide](docs/feeder.md) and
+[Scheduled Crab guide](docs/scheduled-crab.md).
 
 ## The metaphor, in five words
 
@@ -68,6 +68,16 @@ Prerequisites: Python 3.11+, `git`, and `gh` authenticated for the GitHub API.
 ```bash
 uv tool install "hungry-crab @ git+https://github.com/drevendev/HungryCrab"
 ```
+
+Optional native syntax analysis uses `hungry-crab[deep]` on the same source or version:
+
+```bash
+uv tool install "hungry-crab[deep] @ git+https://github.com/drevendev/HungryCrab"
+```
+
+The base installation keeps PyYAML as its only runtime dependency. GitLab.com public reads do
+not require `gh`; private reads use `GITLAB_TOKEN`. GitHub Discussions and JUnit artifact reads
+need the corresponding authenticated API permissions.
 
 That tracks `master`, which is always green, and is the recommended way to install the crab
 while it is pre-1.0. If you want a fixed version instead, append `@v0.2.0` to the URL — that is

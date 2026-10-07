@@ -19,6 +19,7 @@ from .digest import DigestOptions, incomplete_miners
 from .errors import CrabError, UsageError
 from .fetch.catch import CatchOptions, catch, catch_wiki, parse_since, rmtree_force
 from .fetch.github import GitHubClient
+from .fetch.providers import RepositoryClient, client_for
 from .licensing.detect import detect_in_repo
 from .maw import MawConfig, maw_slug, relationship_for
 from .sniff import sniff
@@ -33,11 +34,15 @@ class EatOptions:
     shallow: bool = True
     since: str | None = "90d"
     issues: int = 100
+    discussions: int = 0
+    reviews: int = 0
+    runs: int = 0
     wiki: bool = True
     wiki_path: Path | None = None
     depth: str = "normal"
     top: int = 30
     max_repo_kb: int = 300 * 1024
+    allow_unknown_size: bool = False
     allow_loss: bool = False
     now: datetime | None = None
 
@@ -86,7 +91,7 @@ def eat(
     maw: Path,
     options: EatOptions | None = None,
     *,
-    github: GitHubClient | None = None,
+    github: RepositoryClient | None = None,
     log: Callable[[str], None] = _noop,
 ) -> EatResult:
     """No model, provider writes or ledger mutations. Only the cache and output are written."""
@@ -122,7 +127,11 @@ def eat(
         raise UsageError("Feeder output must not contain a source repository or the cache")
     if out.exists() and (not out.is_dir() or any(out.iterdir())):
         raise UsageError(f"Feeder output {out} is not empty", hint="choose a new --out directory")
-    client = github or GitHubClient(prefer_gh=False, cache_dir=root / "http")
+    client = github or (
+        client_for(prey.slug, prefer_gh=False, cache_dir=root / "http")
+        if prey.slug
+        else GitHubClient(prefer_gh=False, cache_dir=root / "http")
+    )
     acquired: dict[str, Any] = {"sniff": None, "catch": None}
     maw_wiki: Path | None = None
     maw_license = config.license or detect_in_repo(maw, [], max_header_files=0).spdx
@@ -137,6 +146,11 @@ def eat(
             log=log,
         )
         acquired["sniff"] = report.to_dict()
+        if not report.size_available and not opts.allow_unknown_size:
+            raise CrabError(
+                "provider repository size is unavailable; Feeder cannot apply its preflight",
+                hint="explicitly pass --allow-unknown-size to acquire this prey",
+            )
         if report.size_kb > opts.max_repo_kb:
             raise CrabError(
                 f"{prey.label} exceeds Feeder's repository size preflight "
@@ -149,6 +163,9 @@ def eat(
                 shallow=opts.shallow,
                 since=opts.since,
                 issues=opts.issues,
+                discussions=opts.discussions,
+                reviews=opts.reviews,
+                runs=opts.runs,
                 wiki=opts.wiki and report.has_wiki,
             ),
             cache_root=root,
@@ -160,11 +177,16 @@ def eat(
     if opts.wiki:
         slug = maw_slug(maw)
         if slug:
-            info = client.repo(slug)
+            maw_client = (
+                client if not prey.slug or prey.slug.host == slug.host else client_for(slug)
+            )
+            info = maw_client.repo(slug)
             if info.get("has_wiki"):
                 path = prey_paths(slug, root).wiki
                 path.parent.mkdir(parents=True, exist_ok=True)
-                wiki = catch_wiki(path, slug.wiki_clone_url, log=log, token=client.token)
+                wiki = catch_wiki(
+                    path, slug.wiki_clone_url, log=log, token=maw_client.token, auth_host=slug.host
+                )
                 if wiki["status"] == "available":
                     maw_wiki = path
     result, prey_digest, _, _ = compare_for_maw(

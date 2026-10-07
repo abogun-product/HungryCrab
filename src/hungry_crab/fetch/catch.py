@@ -19,9 +19,10 @@ from pathlib import Path
 
 from ..cache import Slug, prey_paths
 from ..errors import ExternalCommandError, UsageError
+from . import channels
 from .git import GitRunner
-from .github import GitHubClient
 from .issues import fetch_issues, write_issues
+from .providers import RepositoryClient, client_for
 
 _SINCE_RE = re.compile(r"^(\d+)\s*([dwmy])$")
 _UNIT_DAYS = {"d": 1, "w": 7, "m": 30, "y": 365}
@@ -38,6 +39,9 @@ class CatchOptions:
     force: bool = False
     issues: int = 0
     wiki: bool = True
+    discussions: int = 0
+    reviews: int = 0
+    runs: int = 0
 
 
 @dataclass
@@ -103,20 +107,22 @@ def catch(
     source_url: str | None = None,
     log: Callable[[str], None] = _noop,
     now: datetime | None = None,
-    github: GitHubClient | None = None,
+    github: RepositoryClient | None = None,
     wiki_source_url: str | None = None,
 ) -> CatchResult:
     """Clone or refresh the prey. ``source_url`` overrides the GitHub URL (used by tests)."""
     opts = options or CatchOptions()
     # Validate before changing any cache. A bad date used to delete a valid --force clone.
     clone_args = clone_arguments(opts, now=now)
-    if opts.issues < 0:
-        raise UsageError("--issues must not be negative")
+    if any(not 0 <= n <= 3000 for n in (opts.issues, opts.discussions, opts.reviews, opts.runs)):
+        raise UsageError("--issues, --discussions, --reviews and --runs must be in 0..3000")
     paths = prey_paths(slug, cache_root)
     paths.root.mkdir(parents=True, exist_ok=True)
     repo_dir = paths.repo
     url = source_url or slug.clone_url
-    token = github.token if github is not None and source_url is None else None
+    client = github or client_for(slug)
+    token = client.token if source_url is None else None
+    auth_host = slug.host
 
     updated = False
     previous: dict[str, object] = {}
@@ -131,7 +137,7 @@ def catch(
     history_window_applied = True if opts.since else None
     if (repo_dir / ".git").exists() and not opts.force and not policy_changed:
         log(f"refreshing {slug} in {repo_dir}")
-        git = GitRunner(repo_dir, github_token=token)
+        git = GitRunner(repo_dir, github_token=token, auth_host=auth_host)
         original_fetch = git.try_run("config", "--get-all", "remote.origin.fetch")
         retargeted = False
         try:
@@ -180,12 +186,16 @@ def catch(
     else:
         log(f"cloning {url} into {repo_dir}")
         try:
-            _clone_replace(repo_dir, url, clone_args, token=token)
+            _clone_replace(repo_dir, url, clone_args, token=token, auth_host=auth_host)
         except ExternalCommandError as exc:
             if opts.shallow and opts.since and "no commits selected" in exc.message.lower():
                 log("history window has no commits; catching a depth-1 tree snapshot instead")
                 _clone_replace(
-                    repo_dir, url, clone_arguments(CatchOptions(shallow=True)), token=token
+                    repo_dir,
+                    url,
+                    clone_arguments(CatchOptions(shallow=True)),
+                    token=token,
+                    auth_host=auth_host,
                 )
                 history_window_applied = False
             else:
@@ -199,14 +209,26 @@ def catch(
             wiki_source_url or slug.wiki_clone_url,
             log=log,
             token=token,
+            auth_host=auth_host,
         )
 
     issues_fetched = 0
     if opts.issues > 0:
-        client = github or GitHubClient()
         items = fetch_issues(client, slug, limit=opts.issues, log=log)
         write_issues(paths.api / "issues.jsonl", items)
         issues_fetched = len(items)
+
+    for name in ("discussions", "reviews", "runs"):
+        limit = getattr(opts, name)
+        if limit:
+            data = getattr(channels, name)(client, slug, limit)
+            paths.api.mkdir(parents=True, exist_ok=True)
+            temporary = paths.api / f".{name}-{uuid.uuid4().hex}.tmp"
+            try:
+                temporary.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+                temporary.replace(paths.api / f"{name}.json")
+            finally:
+                temporary.unlink(missing_ok=True)
 
     result = CatchResult(
         slug=str(slug),
@@ -228,13 +250,20 @@ def catch(
 
 
 def _clone_replace(
-    destination: Path, url: str, args: list[str], *, token: str | None = None
+    destination: Path,
+    url: str,
+    args: list[str],
+    *,
+    token: str | None = None,
+    auth_host: str = "github.com",
 ) -> None:
     """Publish only a complete clone, preserving the last valid tree on failure."""
     staged = destination.with_name(f".{destination.name}-{uuid.uuid4().hex}")
     backup = destination.with_name(f".{destination.name}-old-{uuid.uuid4().hex}")
     try:
-        GitRunner(destination.parent, timeout=3600, github_token=token).run(*args, url, str(staged))
+        GitRunner(destination.parent, timeout=3600, github_token=token, auth_host=auth_host).run(
+            *args, url, str(staged)
+        )
         if not GitRunner(staged).has_commits():
             raise ExternalCommandError(f"{url} has no commits to digest")
         if destination.exists():
@@ -253,10 +282,15 @@ def _clone_replace(
 
 
 def catch_wiki(
-    destination: Path, url: str, *, log: Callable[[str], None] = _noop, token: str | None = None
+    destination: Path,
+    url: str,
+    *,
+    log: Callable[[str], None] = _noop,
+    token: str | None = None,
+    auth_host: str = "github.com",
 ) -> dict[str, object]:
     """Wikis are independent Git repositories. An uninitialised wiki is ordinary absence."""
-    git = GitRunner(destination.parent, timeout=120, github_token=token)
+    git = GitRunner(destination.parent, timeout=120, github_token=token, auth_host=auth_host)
     try:
         remote = git.run("ls-remote", url, "HEAD")
     except ExternalCommandError as exc:
@@ -278,6 +312,10 @@ def catch_wiki(
     ):
         log("catching wiki (depth 1)")
         _clone_replace(
-            destination, url, ["clone", "--quiet", "--depth", "1", "--single-branch"], token=token
+            destination,
+            url,
+            ["clone", "--quiet", "--depth", "1", "--single-branch"],
+            token=token,
+            auth_host=auth_host,
         )
     return {"status": "available", "sha": GitRunner(destination).head_sha(), "url": url}

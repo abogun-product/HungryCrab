@@ -108,13 +108,21 @@ class GitRunner:
     """Run git commands in one working directory."""
 
     def __init__(
-        self, cwd: Path, *, timeout: float = 600.0, github_token: str | None = None
+        self,
+        cwd: Path,
+        *,
+        timeout: float = 600.0,
+        github_token: str | None = None,
+        auth_host: str = "github.com",
     ) -> None:
         self.cwd = cwd
         self.timeout = timeout
         self._exe: str | None = None
         self._filters: dict[str, list[str]] = {}
         self._github_token = github_token
+        if auth_host not in {"github.com", "gitlab.com"}:
+            raise ValueError("unsupported git credential host")
+        self._auth_host = auth_host
 
     @staticmethod
     def available() -> bool:
@@ -166,8 +174,9 @@ class GitRunner:
         if self._github_token:
             # Process-local credentials never appear in argv, clone URLs or .git/config.
             count = int(env.get("GIT_CONFIG_COUNT", "0") or "0")
-            credential = base64.b64encode(f"x-access-token:{self._github_token}".encode()).decode()
-            env[f"GIT_CONFIG_KEY_{count}"] = "http.https://github.com/.extraheader"
+            user = "oauth2" if self._auth_host == "gitlab.com" else "x-access-token"
+            credential = base64.b64encode(f"{user}:{self._github_token}".encode()).decode()
+            env[f"GIT_CONFIG_KEY_{count}"] = f"http.https://{self._auth_host}/.extraheader"
             env[f"GIT_CONFIG_VALUE_{count}"] = f"AUTHORIZATION: basic {credential}"
             env["GIT_CONFIG_COUNT"] = str(count + 1)
         env.update(neutral_filter_env(self._filter_drivers(where, env), env))

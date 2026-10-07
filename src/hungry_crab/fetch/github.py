@@ -7,13 +7,14 @@ import json
 import os
 import shutil
 import subprocess
+import threading
 import time
 import urllib.error
 import urllib.request
 import uuid
 from email.utils import parsedate_to_datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from ..cache import Slug
 from ..errors import ExternalCommandError
@@ -61,6 +62,88 @@ class GitHubClient:
         if not isinstance(data, dict):
             return {}
         return {str(k): int(v) for k, v in data.items() if isinstance(v, int)}
+
+    def graphql(self, query: str, variables: dict[str, Any]) -> dict[str, Any]:
+        """Only read queries; variables are serialized, never interpolated into the query."""
+        if not query.lstrip().startswith("query "):
+            raise ExternalCommandError("the acquisition client accepts GraphQL queries only")
+        payload = json.dumps({"query": query, "variables": variables}).encode()
+        if self.gh:
+            env = dict(os.environ)
+            env.update({"GH_PROMPT_DISABLED": "1", "NO_COLOR": "1", "GH_PAGER": "cat"})
+            try:
+                proc = subprocess.run(
+                    [self.gh, "api", "graphql", "--input", "-"],
+                    input=payload,
+                    capture_output=True,
+                    env=env,
+                    timeout=self.timeout,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                raise ExternalCommandError("GitHub GraphQL request failed") from exc
+            if proc.returncode:
+                raise ExternalCommandError("GitHub GraphQL query failed; check token permissions")
+            body = proc.stdout
+        else:
+            headers = {"Content-Type": "application/json", "User-Agent": USER_AGENT}
+            if self.token:
+                headers["Authorization"] = f"Bearer {self.token}"
+            request = urllib.request.Request(
+                f"{API_ROOT}/graphql", data=payload, headers=headers, method="POST"
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                    body = response.read(8 * 1024 * 1024 + 1)
+            except OSError as exc:
+                raise ExternalCommandError(
+                    "GitHub GraphQL query failed; authentication is required"
+                ) from exc
+        if len(body) > 8 * 1024 * 1024:
+            raise ExternalCommandError("GitHub GraphQL response exceeds 8 MiB")
+        try:
+            result = json.loads(body.decode("utf-8", errors="replace"))
+        except ValueError as exc:
+            raise ExternalCommandError("GitHub GraphQL returned invalid JSON") from exc
+        if (
+            not isinstance(result, dict)
+            or result.get("errors")
+            or not isinstance(result.get("data"), dict)
+        ):
+            raise ExternalCommandError("GitHub GraphQL returned errors or incomplete data")
+        return cast(dict[str, Any], result["data"])
+
+    def artifact(self, slug: Slug, artifact_id: int) -> bytes:
+        """Download a GitHub Actions archive through gh's authenticated redirect handling.
+
+        Artifact reads require actions:read. Plain HTTPS clients leave report coverage
+        unavailable rather than forwarding an authorization header to a signed blob URL.
+        """
+        if not self.gh:
+            raise ExternalCommandError("JUnit artifact reads require gh with actions:read")
+        if artifact_id <= 0:
+            raise ExternalCommandError("invalid artifact id")
+        path = f"repos/{slug}/actions/artifacts/{artifact_id}/zip"
+        try:
+            with subprocess.Popen(
+                [self.gh, "api", path], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+            ) as proc:
+                timer = threading.Timer(self.timeout, proc.kill)
+                timer.daemon = True
+                timer.start()
+                try:
+                    assert proc.stdout is not None
+                    body = cast(bytes, proc.stdout.read(8 * 1024 * 1024 + 1))
+                    if len(body) > 8 * 1024 * 1024:
+                        proc.kill()
+                        raise ExternalCommandError("Actions artifact exceeds 8 MiB")
+                    if proc.wait():
+                        raise ExternalCommandError("Actions artifact is unavailable")
+                finally:
+                    timer.cancel()
+        except OSError as exc:
+            raise ExternalCommandError("Actions artifact download failed") from exc
+        return body
 
     def _get_gh(self, path: str, *, allow_missing: bool) -> Any:
         assert self.gh is not None

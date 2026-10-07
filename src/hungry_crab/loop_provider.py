@@ -25,6 +25,8 @@ class LoopProvider(Protocol):
 
 class GitHubLoopProvider:
     def __init__(self, slug: Slug, run: Callable[..., str]) -> None:
+        if slug.host != "github.com":
+            raise CrabError("scheduled publication requires a GitHub maw")
         self.slug = slug
         self.run = run
 

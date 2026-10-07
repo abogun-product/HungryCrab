@@ -1,6 +1,6 @@
 # Feeder: a menu without an agent
 
-`crab eat <prey> --deterministic --maw .` runs reconnaissance, acquisition, all thirteen
+`crab eat <prey> --deterministic --maw .` runs reconnaissance, acquisition, all fifteen
 miners and maw-aware comparison. It calls no model, executes no prey code, creates no issues
 or pull requests and leaves the ledger untouched. Existing ledger decisions are read to hide
 already decided nutrients. The output is a bundle an agent or a human can read later.

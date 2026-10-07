@@ -24,7 +24,7 @@ from .digest import DigestOptions, DigestResult, failed_miners, run_digest
 from .errors import CrabError, UsageError
 from .feeder import EatOptions, eat
 from .fetch.catch import CatchOptions, catch, rmtree_force
-from .fetch.github import GitHubClient
+from .fetch.providers import client_for
 from .ledger import Ledger
 from .licensing.detect import detect_in_repo
 from .licensing.matrix import Relationship
@@ -113,7 +113,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_eat = sub.add_parser(
         "eat", help="deterministic Feeder: acquire, digest, compare and export; no ledger or issues"
     )
-    p_eat.add_argument("prey", help="owner/repo, GitHub URL, or a local repository")
+    p_eat.add_argument("prey", help="owner/repo, GitHub/GitLab.com URL, or a local repository")
     p_eat.add_argument(
         "--deterministic",
         action="store_true",
@@ -133,6 +133,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="recent issues to read; 0 disables issue acquisition",
     )
     p_eat.add_argument("--no-wiki", action="store_true")
+    p_eat.add_argument(
+        "--allow-unknown-size",
+        action="store_true",
+        help="explicitly accept a provider whose repository size is unavailable",
+    )
     p_eat.add_argument("--wiki-dir", type=Path, help="independent local Git wiki fixture/checkout")
     p_eat.add_argument("--depth", choices=("normal", "deep"), default="normal")
     p_eat.add_argument("--top", type=int, default=30)
@@ -140,7 +145,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-repo-kb",
         type=int,
         default=300 * 1024,
-        help="GitHub repository size preflight; not a hard disk quota",
+        help="provider repository size preflight; not a hard disk quota",
     )
     p_eat.add_argument(
         "--allow-loss", action="store_true", help="explicitly accept inventory visibility loss"
@@ -307,6 +312,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_rm.add_argument("repo")
 
     sub.add_parser("version", help="print the version")
+    for acquisition in (p_catch, p_eat, p_digest, p_compare):
+        acquisition.add_argument(
+            "--discussions",
+            type=int,
+            default=0,
+            help="acquire up to N GitHub Discussions (requires authentication)",
+        )
+        acquisition.add_argument(
+            "--reviews",
+            type=int,
+            default=0,
+            help="acquire up to N pull/merge request review comments",
+        )
+        acquisition.add_argument(
+            "--runs", type=int, default=0, help="acquire up to N CI runs and bounded job metadata"
+        )
     return parser
 
 
@@ -336,7 +357,7 @@ def cmd_sniff(args: argparse.Namespace, log: Callable[[str], None]) -> int:
     slug = Slug.parse(args.repo)
     maw_license = _resolve_maw_license(args.maw, args.maw_license)
     relationship = _sniff_relationship(slug, args.maw)
-    client = GitHubClient(prefer_gh=not args.no_gh)
+    client = client_for(slug, prefer_gh=not args.no_gh)
     report = sniff(
         slug,
         client=client,
@@ -359,6 +380,9 @@ def cmd_catch(args: argparse.Namespace, log: Callable[[str], None]) -> int:
         since=args.since,
         force=args.force,
         issues=args.issues,
+        discussions=getattr(args, "discussions", 0),
+        reviews=getattr(args, "reviews", 0),
+        runs=getattr(args, "runs", 0),
         wiki=not args.no_wiki,
     )
     result = catch(slug, options, cache_root=args.cache_dir, log=log)
@@ -384,11 +408,15 @@ def cmd_eat(args: argparse.Namespace, log: Callable[[str], None]) -> int:
             shallow=args.shallow,
             since=None if args.since == "all" else args.since,
             issues=args.issues,
+            discussions=args.discussions,
+            reviews=args.reviews,
+            runs=args.runs,
             wiki=not args.no_wiki,
             wiki_path=args.wiki_dir,
             depth=args.depth,
             top=args.top,
             max_repo_kb=args.max_repo_kb,
+            allow_unknown_size=args.allow_unknown_size,
             allow_loss=args.allow_loss,
         ),
         log=log,
@@ -459,7 +487,14 @@ def cmd_digest(args: argparse.Namespace, log: Callable[[str], None]) -> int:
         md_budget=args.md_budget,
         budget_policy=config.budget.policy if config is not None else "warn",
         cache_root=args.cache_dir,
-        catch_options=CatchOptions(shallow=args.shallow, since=args.since, issues=args.issues),
+        catch_options=CatchOptions(
+            shallow=args.shallow,
+            since=args.since,
+            issues=args.issues,
+            discussions=args.discussions,
+            reviews=args.reviews,
+            runs=args.runs,
+        ),
         ignore=_maw_ignore_for(target, config),
     )
     result = run_digest(target, options, log=log)
@@ -532,7 +567,14 @@ def cmd_compare(args: argparse.Namespace, log: Callable[[str], None]) -> int:
         force=args.force,
         maw_license=args.maw_license,
         cache_root=args.cache_dir,
-        catch_options=CatchOptions(shallow=args.shallow, since=args.since, issues=args.issues),
+        catch_options=CatchOptions(
+            shallow=args.shallow,
+            since=args.since,
+            issues=args.issues,
+            discussions=args.discussions,
+            reviews=args.reviews,
+            runs=args.runs,
+        ),
     )
     lookup = None
     if not args.no_issues and shutil.which("gh"):
@@ -773,18 +815,36 @@ def cmd_cache(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         print(root)
         return 0
     if args.cache_command == "ls":
-        github = root / "github"
         found = False
-        if github.is_dir():
-            for owner in sorted(p for p in github.iterdir() if p.is_dir()):
-                for repo in sorted(p for p in owner.iterdir() if p.is_dir()):
+        for provider in ("github", "gitlab"):
+            provider_root = root / provider
+            if not provider_root.is_dir():
+                continue
+            for owner in sorted(
+                p for p in provider_root.iterdir() if p.is_dir() and not p.is_symlink()
+            ):
+                pending = [owner]
+                while pending:
+                    repo = pending.pop()
+                    if not (
+                        (repo / "repo" / ".git").exists()
+                        or (repo / "digests").is_dir()
+                        or (repo / "catch.json").is_file()
+                    ):
+                        pending.extend(
+                            sorted(p for p in repo.iterdir() if p.is_dir() and not p.is_symlink())
+                        )
+                        continue
                     found = True
                     digests = repo / "digests"
                     count = (
                         len([d for d in digests.iterdir() if d.is_dir()]) if digests.is_dir() else 0
                     )
                     clone = "clone" if (repo / "repo" / ".git").exists() else "no clone"
-                    print(f"{owner.name}/{repo.name}: {clone}, {count} digest(s)")
+                    label = repo.relative_to(provider_root).as_posix()
+                    if provider == "gitlab":
+                        label = f"gitlab.com/{label}"
+                    print(f"{label}: {clone}, {count} digest(s)")
         if not found:
             print("cache is empty")
         return 0

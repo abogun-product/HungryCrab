@@ -25,7 +25,7 @@ from ..licensing import Relationship, decide
 from ..licensing.policy import apply_maw_policy, nutrient_material
 from ..maw import MawConfig, maw_slug, relationship_for
 from ..nutrients import Candidate
-from ..typeutil import as_dict
+from ..typeutil import as_dict, as_list
 from .candidates import Side, build_candidates
 from .render import gap_doc, menu_doc
 from .scoring import Scoring
@@ -145,6 +145,26 @@ def compare_digests(
     now = opts.now or datetime.now(UTC)
     for candidate in candidates:
         candidate.license_mode = str(verdict["mode"])
+        if "symbols" in candidate.tags:
+            # Syntax evidence is not a per-file permission grant. A review flag or any
+            # applicable license exception makes this review subject fail closed.
+            paths = [e.path for e in candidate.evidence]
+            exceptions = [as_dict(e) for e in as_list(prey.license.get("exceptions"))]
+            applicable = any(
+                e.get("path") == path
+                or (
+                    e.get("kind") == "nested"
+                    and isinstance(e.get("path"), str)
+                    and path.startswith(str(e["path"]).rsplit("/", 1)[0] + "/")
+                )
+                for e in exceptions
+                for path in paths
+            )
+            if prey.license.get("human_review") or applicable:
+                candidate.license_mode = "HUMAN"
+                candidate.trace["symbol_license_review"] = (
+                    "review flag or applicable file exception"
+                )
         candidate.material = nutrient_material(
             candidate.category, [e.path for e in candidate.evidence]
         )
@@ -153,6 +173,7 @@ def compare_digests(
         )
         candidate.uptake = round(candidate.uptake * scoring.uptake_for("same_stack"), 2)
         candidate.trace = {
+            **candidate.trace,
             "prey": prey.label,
             "url": prey.url,
             "sha": prey.sha,

@@ -395,7 +395,7 @@ def _walk_titles(value: object, found: list[str]) -> None:
 
 
 def commenter_titles(meal_dir: Path) -> list[str] | None:
-    """Issue titles the prey's digest carries: third-party prose a served note may not quote.
+    """Commenter prose the prey digest carries, which served notes may not quote.
 
     They sit in ``issues.json`` beside the prey digest the meal names. Short titles are left
     out: three ordinary words match by accident, a sentence does not. ``None`` means the titles
@@ -411,6 +411,22 @@ def commenter_titles(meal_dir: Path) -> list[str] | None:
         return None
     found: list[str] = []
     _walk_titles(loaded, found)
+    signals_file = Path(digest) / "signals.json"
+    manifest = _read_json_object(Path(digest) / "manifest.json")
+    declared = any(as_dict(m).get("name") == "signals" for m in as_list(manifest.get("miners")))
+    if declared and not signals_file.is_file():
+        return None
+    if signals_file.exists():
+        try:
+            signals = json.loads(signals_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        _walk_titles(signals, found)
+        for channel in as_dict(as_dict(signals).get("channels")).values():
+            for item in as_list(as_dict(channel).get("items")):
+                excerpt = as_dict(item).get("body_excerpt")
+                if isinstance(excerpt, str):
+                    found.append(excerpt)
     return sorted({title.strip() for title in found if len(_squash(title)) >= 20})
 
 
@@ -742,6 +758,11 @@ def serve(
     report = ServeReport(mode=options.mode, maw=str(maw_root), skipped=skipped)
     report.ledger_path = str(ledger.path) if ledger.path else None
     slug = slug_lookup(maw_root)
+    if slug is not None and slug.host != "github.com" and options.mode in {"pr-branch", "issue"}:
+        raise CrabError(
+            "GitLab maws support analysis only; provider publication requires a GitHub maw",
+            hint="use --as dry-run to inspect the prepared meal",
+        )
 
     if options.mode == "pr-branch":
         receipts = (

@@ -54,7 +54,7 @@ hunger:                    # per nutrient category: true | false | issues-only |
   history-lesson: true
   issue-lesson: true
   architecture: issues-only
-  code: ideas-only         # declared, and produced by nothing until 0.4: accepted and inert
+  code: ideas-only         # syntax-backed review subjects; require an architectural judgment
 ignore: []                 # globs excluded from this repository's own digest, so that test
                            # fixtures and vendored trees are not mistaken for your code, e.g.
                            # [tests/fixtures/**, examples/**]. Patterns are case-sensitive on
@@ -276,9 +276,9 @@ def write_default_config(root: Path, *, force: bool = False) -> Path:
 def prey_owner(target: Target | Slug | None) -> str | None:
     """The GitHub account a prey belongs to, or None for a local directory."""
     if isinstance(target, Slug):
-        return target.owner
+        return target.owner if target.host == "github.com" else f"{target.host}/{target.owner}"
     if isinstance(target, Target) and target.slug is not None:
-        return target.slug.owner
+        return prey_owner(target.slug)
     return None
 
 
@@ -305,7 +305,7 @@ def relationship_for(
         mine = maw_owner
         if mine is None:
             slug = maw_slug(config.root)
-            mine = slug.owner if slug else None
+            mine = prey_owner(slug)
         if mine and mine.lower() == owner.lower():
             return Relationship.OWN
     return Relationship.FOREIGN

@@ -6,6 +6,31 @@ on:
 permissions:
   contents: read
 jobs:
+  deep:
+    name: Deep Bite (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.13"
+      - run: uv sync --locked --all-extras
+      - name: Acquire GitHub and GitLab, digest and compare without executing prey
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: uv run python benchmarks/deep_smoke.py
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: deep-bite-${{ matrix.os }}
+          path: ${{ runner.temp }}/crab-deep-smoke-*/results.json
   composite:
     name: Composite (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

@@ -14,8 +14,24 @@ tracked in [docs/design/03-roadmap.md](docs/design/03-roadmap.md); this file tra
 
 ### Added
 
+- **0.4 Deep Bite (development milestone):** optional official tree-sitter grammars for nine
+  languages, isolated bounded parsing, declaration indexes and conservative lexical call
+  graphs. The first `code` cards and new architecture cards carry stable ids and source-line
+  evidence, with file licence review narrowing the subject to HUMAN when necessary.
+- **Provider signals:** opt-in GitHub Discussions, GitHub/GitLab review comments and run samples;
+  job durations and rerun recoveries, plus explicit JUnit flaky-rerun evidence. Unknown report
+  coverage stays unknown. Commenter prose remains JSON-only and cannot be quoted in served
+  notes. GitLab.com supports nested namespaces, separate cache/authentication and forge-qualified
+  ownership; publication still requires a GitHub maw.
+- **Eight dependency ecosystems:** Python, npm, .NET, Go, Rust, Ruby, JVM (Maven/Gradle), PHP
+  (Composer), with explicit unresolved inheritance/catalog facts and no package execution.
+- **Quality measurement:** a 56-candidate B1 ranking pressure gate alongside the unchanged human
+  corpus, and B2 freeze/record/blind/fact-check/report commands with immutable receipts, common
+  harness/token budgets, repeated measurements, judge agreement and a 20% human audit. The live
+  sweep remains [#250](https://github.com/drevendev/HungryCrab/issues/250).
+
 - **Feeder: a full menu with no agent installed.** `crab eat --deterministic` chains sniff,
-  catch, all thirteen miners and compare, exports the meal plus both digests, and never writes
+  catch, all fifteen miners and compare, exports the meal plus both digests, and never writes
   the ledger or creates provider issues. The composite action and reusable workflow upload
   the bundle, expose artifact outputs, use read-only tokens directly and default to a shallow
   90-day history window. API reads support conditional requests and bounded retries. A separate

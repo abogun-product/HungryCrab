@@ -45,7 +45,7 @@ def test_eat_exports_complete_bundle_and_preserves_maw_and_ledger(
     } == {p.name for p in result.out_dir.iterdir()}
     for side in ("prey", "maw"):
         manifest = json.loads((result.out_dir / f"{side}-digest" / "manifest.json").read_text())
-        assert len(manifest["miners"]) == 13 and all(m["ok"] for m in manifest["miners"])
+        assert len(manifest["miners"]) == 15 and all(m["ok"] for m in manifest["miners"])
     meal = json.loads((result.out_dir / "meal.json").read_text())
     assert meal["prey_digest"] == "prey-digest" and meal["maw_digest"] == "maw-digest"
 
