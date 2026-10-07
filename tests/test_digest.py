@@ -39,6 +39,10 @@ EXPECTED_FILES = {
     "traits.json",
     "wiki.json",
     "wiki.md",
+    "symbols.json",
+    "symbols.md",
+    "signals.json",
+    "signals.md",
 }
 
 
@@ -145,7 +149,7 @@ def test_a_digest_from_an_older_crab_is_not_reused(npm_app: Path, tmp_path: Path
 
 
 def test_a_digest_without_a_coverage_record_is_not_reused(npm_app: Path, tmp_path: Path) -> None:
-    """Every development build is `0.3.0.dev0`; the missing block is what dates a digest."""
+    """Builds share a development version; the missing coverage block dates a digest."""
     options = DigestOptions(out=tmp_path / "out", now=FIXED_NOW, cache_root=tmp_path / "cache")
     run_digest(Target(path=npm_app), options)
     manifest_path = tmp_path / "out" / "manifest.json"

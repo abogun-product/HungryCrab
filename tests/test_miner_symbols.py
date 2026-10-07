@@ -127,3 +127,63 @@ def test_native_worker_failure_is_contained_and_credentials_are_removed(
     monkeypatch.setattr(subprocess, "run", run)
     records = index_sources([(b"def read(): pass", "core.py", ("python", "language"))])
     assert records[0]["status"] == status and records[0]["symbols"] == []
+
+
+@pytest.mark.skipif(not HAS_EXTRA, reason="optional deep extra is not installed")
+def test_parser_timeout_does_not_become_a_reusable_empty_index(
+    pyproject_cli: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from hungry_crab.cache import Target
+    from hungry_crab.digest import DigestOptions, run_digest
+    from hungry_crab.miners import symbols
+
+    monkeypatch.setattr(
+        symbols,
+        "index_sources",
+        lambda inputs: [
+            {"path": path, "status": "parser-timeout", "symbols": [], "calls": []}
+            for _, path, _ in inputs
+        ],
+    )
+    opts = DigestOptions(cache_root=tmp_path / "cache", out=tmp_path / "digest")
+    first = run_digest(Target(path=pyproject_cli), opts)
+    second = run_digest(Target(path=pyproject_cli), opts)
+    assert not first.cached and not second.cached
+    data = json.loads((second.out_dir / "symbols.json").read_text(encoding="utf-8"))
+    assert data["coverage"]["parser-timeout"] > 0
+
+
+@pytest.mark.skipif(not HAS_EXTRA, reason="optional deep extra is not installed")
+@pytest.mark.parametrize("exception", [False, True])
+def test_syntax_cards_respect_repository_review_and_nested_license_exceptions(
+    digests: dict[str, DigestResult],
+    tmp_path: Path,
+    exception: bool,
+) -> None:
+    import shutil
+
+    from hungry_crab.compare import CompareOptions, compare_digests
+
+    prey = tmp_path / "prey"
+    shutil.copytree(digests["polyglot"].out_dir, prey)
+    license_file = prey / "license.json"
+    license_data = json.loads(license_file.read_text(encoding="utf-8"))
+    if exception:
+        license_data["exceptions"] = [
+            {"kind": "nested", "path": "src/LICENSE", "spdx": "GPL-3.0-only"}
+        ]
+    else:
+        license_data["human_review"] = True
+    license_file.write_text(json.dumps(license_data), encoding="utf-8")
+    # Permit the intentionally edited fixture artifact, leaving real comparisons' integrity
+    # checks enabled. This test exercises policy after syntax evidence is built.
+    result = compare_digests(
+        prey,
+        digests["pyproject-cli"].out_dir,
+        options=CompareOptions(maw_license="MIT", allow_partial=True),
+    )
+    cards = [c for c in result.candidates if "symbols" in c.tags]
+    assert cards and all(c.license_mode == "HUMAN" for c in cards)
+    assert all(c.trace["symbol_license_review"] for c in cards)

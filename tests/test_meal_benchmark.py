@@ -160,6 +160,17 @@ def test_b2_checks_git_evidence_and_license_ceiling(tmp_path: Path, pyproject_cl
     assert not b2.verify_path(pyproject_cli, sha, "../outside")
 
 
+def test_b2_rejects_changed_blind_identity_map(tmp_path: Path, pyproject_cli: Path) -> None:
+    sweep = prepare(tmp_path, pyproject_cli)
+    private = b2.pool(sweep)
+    grade(sweep, private)
+    alias = next(iter(private))
+    private[alias]["run"] = "invented-arm.fixture.1"
+    b2.write(sweep / "private/batch-map.json", private)
+    with pytest.raises(ValueError, match="identity map changed"):
+        b2.report(sweep, {"fixture": str(pyproject_cli)})
+
+
 @pytest.mark.parametrize(
     "field,value", [("quality", 4), ("useful", "yes"), ("category", "invented")]
 )
