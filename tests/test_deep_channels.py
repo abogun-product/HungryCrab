@@ -169,6 +169,17 @@ def test_test_archives_reject_unsafe_xml(source: bytes, status: str) -> None:
     assert parse_junit_archive(archive(source))["status"] == status
 
 
+def test_corrupt_compressed_report_is_explicitly_unavailable() -> None:
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_DEFLATED) as report:
+        report.writestr("junit.xml", b"<testsuite/>")
+    body = bytearray(stream.getvalue())
+    # Local header (30 bytes) plus the known nine-byte filename, before compressed data.
+    body[39:41] = b"\xff\xff"
+    parsed = parse_junit_archive(bytes(body))
+    assert parsed == {"status": "invalid-report", "tests": [], "reports": 0}
+
+
 def test_graphql_client_never_sends_a_mutation() -> None:
     with pytest.raises(ExternalCommandError, match="queries only"):
         GitHubClient().graphql("mutation { deleteRepository }", {})

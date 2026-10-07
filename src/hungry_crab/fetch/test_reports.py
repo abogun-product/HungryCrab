@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import io
+import lzma
 import xml.etree.ElementTree as ET
 import zipfile
+import zlib
 from typing import Any
 
 ZIP_LIMIT = 8 * 1024 * 1024
@@ -51,6 +53,14 @@ def parse_junit_archive(body: bytes) -> dict[str, Any]:
                             "flaky_rerun": flaky,
                         }
                     )
-    except (ValueError, OSError, zipfile.BadZipFile, ET.ParseError, RuntimeError):
+    except (
+        ValueError,
+        OSError,
+        zipfile.BadZipFile,
+        ET.ParseError,
+        RuntimeError,
+        zlib.error,
+        lzma.LZMAError,
+    ):
         return {"status": "invalid-report", "tests": [], "reports": 0}
     return {"status": "available", "tests": tests, "reports": reports}
