@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fixture_builder import git as fixture_git
 from test_loop import NOW, SHA, Loop, force_phase
 from test_loop import loop as _loop_fixture
 
@@ -28,6 +29,9 @@ def test_eat_checks_exported_feeder_evidence_from_another_working_directory(
     wiki.mkdir()
     (wiki / "Home.md").write_text("# Home\n", encoding="utf-8")
     (wiki / "Reference.md").write_text("# Reference\n", encoding="utf-8")
+    fixture_git(wiki, "init", "-b", "main")
+    fixture_git(wiki, "add", ".")
+    fixture_git(wiki, "commit", "-m", "docs: integration wiki", date=NOW.isoformat())
     if damage == "wiki-loss":
         monkeypatch.setattr("hungry_crab.miners.wiki.MAX_PAGES", {"normal": 1, "deep": 1})
     bundle = eat(
