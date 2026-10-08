@@ -39,7 +39,9 @@ The prey is never executed. Not one line of its text reaches your issues unless 
 it may.
 
 **Status: [0.2.0 "Menu"](https://github.com/drevendev/HungryCrab/releases/latest) is the latest
-release; the development line is 0.4.0.dev0, "Deep Bite".** Feeder and Scheduled Crab provide
+release; the development line is 0.5.0.dev0, "Taste Memory".** Taste Memory adds confirmed
+decision learning, gap-directed GitHub discovery, multi-prey menus and reviewed hunger profiles.
+See the [Taste Memory guide](docs/taste-memory.md). Feeder and Scheduled Crab provide
 deterministic meals and guarded publication. Deep Bite adds optional syntax indexes and
 symbol-backed code/architecture cards, Discussions, review comments, CI reliability evidence,
 eight dependency ecosystems and GitLab.com acquisition. B1 now includes a ranking pressure

@@ -14,6 +14,19 @@ tracked in [docs/design/03-roadmap.md](docs/design/03-roadmap.md); this file tra
 
 ### Added
 
+- **0.5 Taste Memory (development milestone):** bounded category learning from confirmed
+  decisions, explainable memory snapshots, gap-directed GitHub `hunt`, reviewed hunger profiles,
+  atomic multi-prey Feeder bundles with paged menus, full source provenance and conservative
+  stable-id deduplication. Aggregate serving retains per-source license and receipt verification.
+- **Discovery HUNT:** opt-in, maw-owned discovery with a shortlist bound to the active phase lease.
+  Only recording advances the scheduled protocol; fixed prey lists remain allowlists.
+- **Reliable feedback:** retain explicit acceptance across automatic issue serving; atomically
+  save supported ledgers without losing unknown fields and refuse future or malformed schemas.
+- **Tuning repairs:** repeat writes are idempotent, comments and surrounding policy survive,
+  real prey-scoped trait families can learn, already-disabled hunger is respected, invalid sample
+  thresholds fail, and every uptake kind uses its configured weight. Reject maw config typos and
+  wrong-shaped settings before applying policy. See [Taste Memory](docs/taste-memory.md).
+
 - **0.4 Deep Bite (development milestone):** optional official tree-sitter grammars for nine
   languages, isolated bounded parsing, declaration indexes and conservative lexical call
   graphs. The first `code` cards and new architecture cards carry stable ids and source-line

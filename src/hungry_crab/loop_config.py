@@ -40,6 +40,7 @@ class LoopSettings:
     autonomy: str = "serve"
     work_authorized: bool = False
     prey: list[str] = field(default_factory=list)
+    discovery: bool = False
     phases_per_day: int = 4
     prey_per_round: int = 2
     open_issues_max: int = 10
@@ -59,6 +60,7 @@ class LoopSettings:
                 "autonomy",
                 "work_authorized",
                 "prey",
+                "discovery",
                 "budget",
                 "max_attempts",
                 "lease_minutes",
@@ -76,6 +78,10 @@ class LoopSettings:
         if not isinstance(authorization, bool):
             raise UsageError("loop.work_authorized must be a boolean")
         result.work_authorized = authorization
+        discovery = data.get("discovery", False)
+        if not isinstance(discovery, bool):
+            raise UsageError("loop.discovery must be a boolean")
+        result.discovery = discovery
         result.prey = strings(data.get("prey", []), "loop.prey")
         result.protected += strings(data.get("protected", []), "loop.protected")
         result.release_files = strings(

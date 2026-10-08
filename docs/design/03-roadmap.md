@@ -55,9 +55,12 @@ compete for 30 places and catches scoring regressions. Larger human labeling rem
 measured transcripts/costs, blinds cards and validates judgments and pinned evidence; it does
 not claim model results from its synthetic tests. Run the live sweep and audit in
 [#250](https://github.com/drevendev/HungryCrab/issues/250), close the 0.3 release evidence and
-validate the scheduled pipeline before widening autonomy. The next capability milestone is
-**0.5 Taste Memory**: ledger-guided scoring, prey discovery and multi-prey menus. Establish B2
-baseline usefulness before changing learned weights.
+validate the scheduled pipeline before widening autonomy. **0.5 Taste Memory** implements
+ledger-guided scoring, bounded GitHub prey discovery, multi-prey menus and reviewed hunger
+profiles; see the [operator guide](../taste-memory.md). Implementation is a development milestone,
+not a release or proof of improved live uptake. Establish the B2 baseline before the held-out
+comparison in [#256](https://github.com/drevendev/HungryCrab/issues/256); preserve the frozen
+0.4 baseline and explicit owner overrides when evaluating learned weights.
 
 A milestone and a release are different things, and conflating them is what produced
 [#37](https://github.com/drevendev/HungryCrab/issues/37): 0.2.2 was declared released in three

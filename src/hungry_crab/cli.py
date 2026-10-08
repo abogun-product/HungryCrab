@@ -12,6 +12,7 @@ import json
 import shutil
 import sys
 from collections.abc import Callable, Sequence
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,8 @@ from .errors import CrabError, UsageError
 from .feeder import EatOptions, eat
 from .fetch.catch import CatchOptions, catch, rmtree_force
 from .fetch.providers import client_for
+from .hunt import format_hunt, hunt
+from .hunt_config import HuntSettings
 from .ledger import Ledger
 from .licensing.detect import detect_in_repo
 from .licensing.matrix import Relationship
@@ -32,8 +35,11 @@ from .loop_cli import add_loop_parser, cmd_loop
 from .maw import MawConfig, relationship_for, write_default_config
 from .miners import MINER_NAMES
 from .miners.inventory import describe_coverage
+from .multifeed import eat_many, load_multi
+from .multiserve import serve_many
 from .nutrients import STATUSES, Candidate
 from .pr_publication import nutrient_spec_path
+from .profiles import DESCRIPTIONS, PROFILES, hunger_for, infer_profile
 from .serve import GhIssueClient, ServeOptions, ServeReport, serve
 from .sniff import format_report, sniff
 from .tune import analyse
@@ -113,7 +119,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_eat = sub.add_parser(
         "eat", help="deterministic Feeder: acquire, digest, compare and export; no ledger or issues"
     )
-    p_eat.add_argument("prey", help="owner/repo, GitHub/GitLab.com URL, or a local repository")
+    p_eat.add_argument(
+        "prey", nargs="+", help="one to ten owner/repo references or local repositories"
+    )
     p_eat.add_argument(
         "--deterministic",
         action="store_true",
@@ -226,6 +234,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_init = sub.add_parser("init", help="write a default .crab.yml into the maw repository")
     p_init.add_argument("--maw", type=Path, default=Path(), help="maw repository (default: .)")
     p_init.add_argument("--force", action="store_true", help="overwrite an existing file")
+    p_init.add_argument("--profile", choices=(*PROFILES, "auto"), default="balanced")
+    p_profiles = sub.add_parser("profiles", help="list reviewed hunger profiles")
+    p_profiles.add_argument("--json", action="store_true")
+    p_hunt = sub.add_parser("hunt", help="discover prey from this maw's gaps and taste memory")
+    p_hunt.add_argument("--for", dest="maw", type=Path, default=Path())
+    p_hunt.add_argument("--query", action="append", default=None)
+    p_hunt.add_argument("--limit", type=int, default=None)
+    p_hunt.add_argument("--min-stars", type=int, default=None)
+    p_hunt.add_argument("--include-seen", action="store_true")
+    p_hunt.add_argument("--allow-unknown-size", action="store_true")
+    p_hunt.add_argument("--json", action="store_true")
 
     p_ledger = sub.add_parser("ledger", help="show or update the maw ledger")
     p_ledger.add_argument("--maw", type=Path, default=Path(), help="maw repository (default: .)")
@@ -242,7 +261,8 @@ def build_parser() -> argparse.ArgumentParser:
         "serve",
         help="turn approved nutrients into issues or clean-room pull requests (dry-run by default)",
     )
-    p_serve.add_argument("prey", help="owner/repo, a GitHub URL, or a local directory")
+    p_serve.add_argument("prey", nargs="?", help="owner/repo, a GitHub URL, or a local directory")
+    p_serve.add_argument("--meal-dir", type=Path, help="verified multi-prey bundle from eat")
     p_serve.add_argument("--maw", type=Path, default=Path(), help="maw repository (default: .)")
     p_serve.add_argument("--ids", default=None, help="comma-separated nutrient ids from menu.md")
     p_serve.add_argument("--top", type=int, default=None, help="serve the top N instead of --ids")
@@ -287,7 +307,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_tune.add_argument("--json", action="store_true")
 
     p_menu = sub.add_parser("menu", help="print the ranked menu from the last compare")
-    p_menu.add_argument("prey", help="owner/repo, a GitHub URL, or a local directory")
+    p_menu.add_argument("prey", nargs="?", help="owner/repo, a GitHub URL, or a local directory")
+    p_menu.add_argument("--meal-dir", type=Path, help="verified multi-prey bundle from eat")
     p_menu.add_argument(
         "--maw", type=Path, default=Path(), help="maw repository whose meal to read (default: .)"
     )
@@ -399,27 +420,28 @@ def cmd_catch(args: argparse.Namespace, log: Callable[[str], None]) -> int:
 
 
 def cmd_eat(args: argparse.Namespace, log: Callable[[str], None]) -> int:
-    result = eat(
-        resolve_target(args.prey),
-        _maw_dir(args.maw),
-        EatOptions(
-            out=args.out,
-            cache_root=args.cache_dir,
-            shallow=args.shallow,
-            since=None if args.since == "all" else args.since,
-            issues=args.issues,
-            discussions=args.discussions,
-            reviews=args.reviews,
-            runs=args.runs,
-            wiki=not args.no_wiki,
-            wiki_path=args.wiki_dir,
-            depth=args.depth,
-            top=args.top,
-            max_repo_kb=args.max_repo_kb,
-            allow_unknown_size=args.allow_unknown_size,
-            allow_loss=args.allow_loss,
-        ),
-        log=log,
+    options = EatOptions(
+        out=args.out,
+        cache_root=args.cache_dir,
+        shallow=args.shallow,
+        since=None if args.since == "all" else args.since,
+        issues=args.issues,
+        discussions=args.discussions,
+        reviews=args.reviews,
+        runs=args.runs,
+        wiki=not args.no_wiki,
+        wiki_path=args.wiki_dir,
+        depth=args.depth,
+        top=args.top,
+        max_repo_kb=args.max_repo_kb,
+        allow_unknown_size=args.allow_unknown_size,
+        allow_loss=args.allow_loss,
+    )
+    preys = [resolve_target(value) for value in args.prey]
+    result = (
+        eat(preys[0], _maw_dir(args.maw), options, log=log)
+        if len(preys) == 1
+        else eat_many(preys, _maw_dir(args.maw), options, log=log)
     )
     if args.json:
         print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
@@ -597,8 +619,31 @@ def cmd_compare(args: argparse.Namespace, log: Callable[[str], None]) -> int:
 
 
 def cmd_init(args: argparse.Namespace) -> int:
-    path = write_default_config(_maw_dir(args.maw), force=args.force)
+    maw = _maw_dir(args.maw)
+    profile = infer_profile(maw) if args.profile == "auto" else args.profile
+    path = write_default_config(maw, force=args.force, profile=profile)
     print(f"wrote {path}")
+    return 0
+
+
+def cmd_hunt(args: argparse.Namespace, log: Callable[[str], None]) -> int:
+    maw = _maw_dir(args.maw)
+    raw = asdict(MawConfig.load(maw).hunt)
+    for name, value in (
+        ("queries", args.query),
+        ("limit", args.limit),
+        ("min_stars", args.min_stars),
+    ):
+        if value is not None:
+            raw[name] = value
+    for name in ("include_seen", "allow_unknown_size"):
+        if getattr(args, name):
+            raw[name] = True
+    report = hunt(maw, settings=HuntSettings.load(raw), cache_root=args.cache_dir, log=log)
+    print(
+        json.dumps(report, indent=2, ensure_ascii=False) if args.json else format_hunt(report),
+        end="\n" if args.json else "",
+    )
     return 0
 
 
@@ -666,6 +711,30 @@ def print_serve_report(report: ServeReport) -> None:
 
 
 def cmd_serve(args: argparse.Namespace, log: Callable[[str], None]) -> int:
+    if bool(args.prey) == bool(args.meal_dir):
+        raise UsageError("serve needs exactly one prey or --meal-dir")
+    if args.meal_dir:
+        maw = _maw_dir(args.maw)
+        config = MawConfig.load(maw)
+        ledger = Ledger.load(config.ledger_path(args.cache_dir), maw=maw.name)
+        ids = [item.strip() for item in args.ids.split(",") if item.strip()] if args.ids else []
+        report = serve_many(
+            args.meal_dir,
+            maw,
+            ServeOptions(ids=ids, top=args.top, mode=args.mode, notes=args.notes),
+            config=config,
+            ledger=ledger,
+            client=GhIssueClient(token_env=config.serve.token_env)
+            if args.mode != "dry-run"
+            else None,
+            cache_root=args.cache_dir,
+            log=log,
+        )
+        if args.json:
+            print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
+        else:
+            print_serve_report(report)
+        return 0
     prey = resolve_target(args.prey)
     maw = _maw_dir(args.maw)
     config = MawConfig.load(maw)
@@ -758,7 +827,7 @@ def cmd_tune(args: argparse.Namespace) -> int:
     config = MawConfig.load(maw)
     ledger = Ledger.load(config.ledger_path(args.cache_dir), maw=maw.name)
     scoring = Scoring.default().merged(config.scoring)
-    report = analyse(ledger, scoring, min_decisions=args.min_decisions)
+    report = analyse(ledger, scoring, min_decisions=args.min_decisions, hunger=config.hunger)
     written = None
     if args.write and any(s.kind in ("category", "trait") for s in report.suggestions):
         apply_tuning(report, config)
@@ -775,12 +844,19 @@ def cmd_tune(args: argparse.Namespace) -> int:
 
 
 def cmd_menu(args: argparse.Namespace, log: Callable[[str], None]) -> int:
-    prey = resolve_target(args.prey)
-    meal_dir = meal_for(prey, _maw_dir(args.maw), DigestOptions(cache_root=args.cache_dir))
-    menu = load_menu(meal_dir)
+    menu: dict[str, Any] | None
+    if bool(args.prey) == bool(args.meal_dir):
+        raise UsageError("menu needs exactly one prey or --meal-dir")
+    if args.meal_dir:
+        meal_dir = args.meal_dir
+        menu, _, _ = load_multi(meal_dir)
+    else:
+        prey = resolve_target(args.prey)
+        meal_dir = meal_for(prey, _maw_dir(args.maw), DigestOptions(cache_root=args.cache_dir))
+        menu = load_menu(meal_dir)
     if menu is None:
         raise CrabError(
-            f"no menu for {prey.label} yet",
+            f"no menu for {args.prey} yet",
             hint=f"run: crab compare {args.prey} --maw <path to the maw repository>",
         )
     cards = menu_candidates(menu)
@@ -888,6 +964,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             return cmd_catch(args, log)
         if args.command == "eat":
             return cmd_eat(args, log)
+        if args.command == "hunt":
+            return cmd_hunt(args, log)
+        if args.command == "profiles":
+            profiles = {
+                name: {"description": DESCRIPTIONS[name], "hunger": hunger_for(name)}
+                for name in PROFILES
+            }
+            print(
+                json.dumps(profiles, indent=2)
+                if args.json
+                else "\n".join(f"{name}: {DESCRIPTIONS[name]}" for name in PROFILES)
+            )
+            return 0
         if args.command == "digest":
             return cmd_digest(args, log)
         if args.command == "compare":

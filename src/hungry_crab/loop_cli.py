@@ -21,6 +21,7 @@ def add_loop_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) ->
         "status",
         "next",
         "record",
+        "hunt",
         "pause",
         "resume",
         "acknowledge",
@@ -38,7 +39,7 @@ def add_loop_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser]) ->
             help="state in a control repository; maw-owned policy remains authoritative",
         )
         command.add_argument("--json", action="store_true")
-        if name in {"record", "serve", "publish", "tag"}:
+        if name in {"record", "serve", "publish", "tag", "hunt"}:
             command.add_argument("--token", required=True, help="lease token from loop next")
         if name == "record":
             command.add_argument("--phase", required=True, choices=PHASES)
@@ -94,6 +95,8 @@ def cmd_loop(args: argparse.Namespace) -> int:
             }
     elif action == "next":
         result = loop.next()
+    elif action == "hunt":
+        result = loop.discover(args.token)
     elif action == "record":
         result = loop.record(
             args.token,

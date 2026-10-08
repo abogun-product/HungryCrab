@@ -24,6 +24,7 @@ from ..ledger import Ledger
 from ..licensing import Relationship, decide
 from ..licensing.policy import apply_maw_policy, nutrient_material
 from ..maw import MawConfig, maw_slug, relationship_for
+from ..memory import learn
 from ..nutrients import Candidate
 from ..typeutil import as_dict, as_list
 from .candidates import Side, build_candidates
@@ -43,6 +44,7 @@ def _noop(_: str) -> None:
 class CompareOptions:
     hunger: dict[str, Any] = field(default_factory=dict)
     scoring: dict[str, Any] | None = None
+    memory: dict[str, Any] = field(default_factory=dict)
     ignore: list[str] = field(default_factory=list)
     top: int = 30
     maw_license: str | None = None
@@ -171,7 +173,11 @@ def compare_digests(
         candidate.license_mode, candidate.license_policy_reason = apply_maw_policy(
             candidate.license_mode, policy=opts.mode, material=candidate.material
         )
-        candidate.uptake = round(candidate.uptake * scoring.uptake_for("same_stack"), 2)
+        if candidate.category in {"history-lesson", "issue-lesson", "architecture"} and not (
+            prey.ecosystems & maw.ecosystems
+        ):
+            candidate.uptake_kind = "transferable"
+        candidate.uptake = round(scoring.uptake_for(candidate.uptake_kind), 2)
         candidate.trace = {
             **candidate.trace,
             "prey": prey.label,
@@ -229,6 +235,7 @@ def compare_digests(
         "mode": opts.mode,
         "hunger": opts.hunger,
         "scoring": scoring.to_dict(),
+        "memory": opts.memory,
         "counts": {
             "total": len(candidates),
             "top": opts.top,
@@ -351,9 +358,13 @@ def compare_for_maw(
     relationship = relationship_for(prey_target, config)
     if relationship is not Relationship.FOREIGN:
         log(f"license relationship: {relationship.value} (from .crab.yml trust)")
+    learned, memory = learn(
+        ledger, Scoring.default().merged(config.scoring), config.memory, overrides=config.scoring
+    )
     options = CompareOptions(
         hunger=config.hunger,
-        scoring=config.scoring,
+        scoring=learned.to_dict(),
+        memory=memory.to_dict(),
         ignore=config.ignore,
         top=top,
         maw_license=config.license or d_opts.maw_license,

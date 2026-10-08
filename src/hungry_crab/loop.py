@@ -12,7 +12,7 @@ import json
 import os
 import sys
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -221,6 +221,26 @@ class Loop:
             for field in ("history", "prey", "prs", "issues", "meals"):
                 _require(isinstance(data[field], list))
             _require(all(isinstance(item, str) for item in data["prey"]))
+            if "discovery" in data:
+                discovery = data["discovery"]
+                _require(
+                    isinstance(discovery, dict) and discovery.get("schema") == "hungry-crab.hunt/1"
+                )
+                _require(
+                    isinstance(discovery.get("candidates"), list)
+                    and len(discovery["candidates"]) <= 100
+                )
+                _require(
+                    all(
+                        isinstance(row, dict) and isinstance(row.get("prey"), str)
+                        for row in discovery["candidates"]
+                    )
+                )
+                _require(
+                    isinstance(discovery.get("token"), str)
+                    and type(discovery.get("round")) is int
+                    and isinstance(discovery.get("policy_sha"), str)
+                )
             _require(len(set(data["prey"])) == len(data["prey"]))
             _require(len(data["prey"]) <= 3)
             _require(data["prey_index"] <= len(data["prey"]))
@@ -268,7 +288,7 @@ class Loop:
     def init(self) -> dict[str, Any]:
         for prey in self.settings.prey:
             Slug.parse(prey)
-        if not self.settings.prey:
+        if not self.settings.prey and not self.settings.discovery:
             raise UsageError("configure a fixed loop.prey list in the maw's .crab.yml first")
         with state_lock(self.path):
             if self.path.exists():
@@ -351,7 +371,8 @@ class Loop:
             "inputs": {
                 "ledger": str(self.config.ledger_path()) if self.config.ledger_path() else None,
                 "config": str(self.config.path),
-                "prey_candidates": self.settings.prey,
+                "prey_candidates": self.settings.prey
+                or [row["prey"] for row in data.get("discovery", {}).get("candidates", [])],
                 "meals": data["meals"],
                 "notes": data["notes"],
                 "goal": data["goal"],
@@ -365,6 +386,39 @@ class Loop:
 
     def status(self) -> dict[str, Any]:
         return self._view(self._load())
+
+    def discover(
+        self, token: str, *, search: Callable[[Path], dict[str, Any]] | None = None
+    ) -> dict[str, Any]:
+        from .hunt import hunt
+
+        if not self.settings.discovery:
+            raise UsageError("loop.discovery must be enabled in the maw before discovering prey")
+        with state_lock(self.path):
+            data = self._load()
+            self.active(data, token, "hunt")
+            policy = self.config.path.read_bytes() if self.config.exists else b""
+        started = datetime.now(UTC)
+        report = search(self.maw) if search else hunt(self.maw)
+        self.now += datetime.now(UTC) - started
+        with state_lock(self.path):
+            data = self._load()
+            self.active(data, token, "hunt")
+            current = self.config.path.read_bytes() if self.config.path.exists() else b""
+            if current != policy:
+                raise CrabError("maw policy changed during discovery; repeat HUNT")
+            if report.get("schema") != "hungry-crab.hunt/1" or not isinstance(
+                report.get("candidates"), list
+            ):
+                raise CrabError("invalid discovery report")
+            data["discovery"] = {
+                **report,
+                "token": token,
+                "round": data["round"],
+                "policy_sha": hashlib.sha256(policy).hexdigest(),
+            }
+            self._save(data)
+            return self._view(data)
 
     def marker(self, data: dict[str, Any]) -> str:
         revision = data["revisions"].get(f"{data['round']}:{data['phase']}", 0)
@@ -560,6 +614,19 @@ class Loop:
         elif phase == "hunt":
             prey = receipt.get("prey")
             configured = {str(Slug.parse(item)) for item in self.settings.prey}
+            if self.settings.discovery and not configured:
+                discovery = data.get("discovery", {})
+                if (
+                    discovery.get("round") != data["round"]
+                    or discovery.get("token") != data["active"]["token"]
+                ):
+                    raise CrabError("HUNT requires discovery during the current lease")
+                policy = self.config.path.read_bytes() if self.config.path.exists() else b""
+                if discovery.get("policy_sha") != hashlib.sha256(policy).hexdigest():
+                    raise CrabError("maw policy changed after discovery; repeat HUNT")
+                configured = {
+                    str(Slug.parse(row["prey"])) for row in discovery.get("candidates", [])
+                }
             if (
                 not isinstance(prey, list)
                 or not prey
@@ -568,7 +635,7 @@ class Loop:
                 or len(set(prey)) != len(prey)
             ):
                 raise CrabError(
-                    "HUNT must select distinct prey from the maw's fixed list within budget"
+                    "HUNT must select distinct prey from the current maw shortlist within budget"
                 )
             data["prey"] = prey
             data["prey_index"] = 0
@@ -644,6 +711,7 @@ class Loop:
             data["prey"] = []
             data["prey_index"] = 0
             data["meals"] = []
+            data.pop("discovery", None)
         else:
             data["phase"] = PHASES[PHASES.index(phase) + 1]
         data["attempt"] = 0

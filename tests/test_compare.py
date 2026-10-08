@@ -26,6 +26,23 @@ def _ids(candidates: list[Candidate]) -> set[str]:
     return {c.id for c in candidates}
 
 
+def test_other_stack_uptake_override_changes_cross_stack_scores(
+    npm_digest: DigestResult, py_digest: DigestResult
+) -> None:
+    baseline = compare_digests(npm_digest.out_dir, py_digest.out_dir)
+    zero = compare_digests(
+        npm_digest.out_dir,
+        py_digest.out_dir,
+        options=CompareOptions(scoring={"uptake": {"other_stack": 0.0}}),
+    )
+    cross = [
+        card for card in baseline.candidates if card.uptake_kind == "other_stack" and card.score > 0
+    ]
+    assert cross, "the fixture must exercise a real cross-stack test nutrient"
+    by_id = {card.id: card for card in zero.candidates}
+    assert all(by_id[card.id].uptake == 0 and by_id[card.id].score < card.score for card in cross)
+
+
 def test_side_loads_a_digest(npm_digest: DigestResult, npm_app: Path) -> None:
     side = Side.load(npm_digest.out_dir, root=npm_app)
     assert side.label == "npm-app"

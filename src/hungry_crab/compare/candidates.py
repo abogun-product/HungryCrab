@@ -551,7 +551,7 @@ def test_candidates(prey: Side, maw: Side) -> list[Candidate]:
                 effort=effort,
                 risk="medium" if kind in ("e2e", "mutation") else "low",
                 value=0.7 if kind in ("e2e", "property", "integration") else 0.5,
-                uptake=1.0 if same_stack else 0.6,
+                uptake_kind="same_stack" if same_stack else "other_stack",
                 tags=[trait, *used],
             )
         )

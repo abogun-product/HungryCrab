@@ -92,7 +92,6 @@ def test_invalid_values_are_usage_errors(tmp_path: Path, text: str) -> None:
         MawConfig.load(tmp_path)
 
 
-
 @pytest.mark.parametrize(
     ("text", "unknown", "suggested"),
     [

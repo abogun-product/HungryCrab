@@ -10,10 +10,15 @@ import yaml
 
 from .budget import BUDGET_POLICIES
 from .cache import Slug, Target, maw_paths
+from .config_edit import atomic_text, replace_section
+from .config_validation import validate
 from .errors import CrabError, UsageError
 from .fetch.git import GitRunner
+from .hunt_config import HuntSettings
 from .licensing import Relationship
 from .loop_config import LoopSettings
+from .memory import MemorySettings
+from .profiles import hunger_for
 from .typeutil import as_dict, as_list
 
 CONFIG_FILE = ".crab.yml"
@@ -167,6 +172,9 @@ class MawConfig:
     exists: bool = False
     license: str | None = None
     mode: str = "normal"
+    profile: str = "balanced"
+    memory: MemorySettings = field(default_factory=MemorySettings)
+    hunt: HuntSettings = field(default_factory=HuntSettings)
     hunger: dict[str, Any] = field(default_factory=lambda: dict(DEFAULT_HUNGER))
     ignore: list[str] = field(default_factory=list)
     budget: BudgetSettings = field(default_factory=BudgetSettings)
@@ -193,6 +201,12 @@ class MawConfig:
         except yaml.YAMLError as exc:
             raise UsageError(f"{path} is not valid YAML: {exc}") from exc
         data = as_dict(loaded)
+        if (loaded is None and yaml.compose(path.read_text(encoding="utf-8")) is not None) or (
+            loaded is not None and not isinstance(loaded, dict)
+        ):
+            raise UsageError(".crab.yml must be a mapping")
+        if "appetite" not in data:
+            validate(data)
         config.exists = True
         config.raw = data
         license_value = data.get("license")
@@ -205,7 +219,10 @@ class MawConfig:
                 f"{path} uses the old key 'appetite'",
                 hint="rename it to 'hunger'; the values are unchanged",
             )
-        hunger = dict(DEFAULT_HUNGER)
+        config.profile = str(data.get("profile", "balanced"))
+        hunger = hunger_for(config.profile)
+        config.memory = MemorySettings.load(data.get("memory", {}))
+        config.hunt = HuntSettings.load(data.get("hunt", {}))
         for key, value in as_dict(data.get("hunger")).items():
             hunger[str(key)] = _hunger_value(value)
         config.hunger = hunger
@@ -251,25 +268,34 @@ class MawConfig:
         return None
 
     def write_scoring(self, scoring: dict[str, Any]) -> Path:
-        """Persist scoring overrides. Comments in an existing file are not preserved."""
+        """Atomically replace only scoring, preserving the owner's surrounding policy."""
+        if self.exists and scoring == self.scoring:
+            return self.path
         data = dict(self.raw) if self.exists else as_dict(yaml.safe_load(DEFAULT_CONFIG_TEXT))
         data["scoring"] = scoring
-        self.path.write_text(
-            yaml.safe_dump(data, sort_keys=False, allow_unicode=True),
-            encoding="utf-8",
-            newline="\n",
-        )
+        text = DEFAULT_CONFIG_TEXT
+        if self.exists:
+            with self.path.open(encoding="utf-8", newline="") as source:
+                text = source.read()
+        atomic_text(self.path, replace_section(text, "scoring", scoring))
         self.raw = data
         self.scoring = scoring
         self.exists = True
         return self.path
 
 
-def write_default_config(root: Path, *, force: bool = False) -> Path:
+def write_default_config(root: Path, *, force: bool = False, profile: str = "balanced") -> Path:
     path = root / CONFIG_FILE
     if path.exists() and not force:
         raise CrabError(f"{path} already exists", hint="pass --force to overwrite it")
-    path.write_text(DEFAULT_CONFIG_TEXT, encoding="utf-8", newline="\n")
+    text = (
+        "profile: "
+        + profile
+        + "\nmemory:\n  enabled: true\n  min_decisions: 3\n  strength: 0.3\n"
+        + DEFAULT_CONFIG_TEXT
+    )
+    text = replace_section(text, "hunger", hunger_for(profile))
+    atomic_text(path, text)
     return path
 
 
