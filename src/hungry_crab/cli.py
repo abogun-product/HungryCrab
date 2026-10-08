@@ -711,15 +711,16 @@ def print_serve_report(report: ServeReport) -> None:
 
 
 def cmd_serve(args: argparse.Namespace, log: Callable[[str], None]) -> int:
-    if bool(args.prey) == bool(args.meal_dir):
+    meal_directory = getattr(args, "meal_dir", None)
+    if bool(args.prey) == bool(meal_directory):
         raise UsageError("serve needs exactly one prey or --meal-dir")
-    if args.meal_dir:
+    if meal_directory:
         maw = _maw_dir(args.maw)
         config = MawConfig.load(maw)
         ledger = Ledger.load(config.ledger_path(args.cache_dir), maw=maw.name)
         ids = [item.strip() for item in args.ids.split(",") if item.strip()] if args.ids else []
         report = serve_many(
-            args.meal_dir,
+            meal_directory,
             maw,
             ServeOptions(ids=ids, top=args.top, mode=args.mode, notes=args.notes),
             config=config,

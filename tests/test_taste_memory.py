@@ -178,12 +178,15 @@ def test_same_schema_unknown_fields_survive_and_future_schema_is_preserved(tmp_p
     data = ledger.to_dict()
     data["future_metadata"] = {"notes": [1, 2]}
     data["entries"][0]["evidence_v2"] = ["pinned"]
+    data["meals"] = [{"prey": "p", "future_meal": [2], "extra": {"unknown": 1}}]
     path.write_text(json.dumps(data), encoding="utf-8")
     loaded = Ledger.load(path)
     loaded.save()
     saved = json.loads(path.read_text())
     assert saved["future_metadata"] == data["future_metadata"]
     assert saved["entries"][0]["evidence_v2"] == ["pinned"]
+    assert saved["meals"][0]["future_meal"] == [2]
+    assert saved["meals"][0]["extra"] == {"unknown": 1}
     data["schema"] = "hungry-crab.ledger/2"
     path.write_text(json.dumps(data), encoding="utf-8")
     before = path.read_bytes()

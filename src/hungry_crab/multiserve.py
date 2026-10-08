@@ -35,7 +35,8 @@ def serve_many(
     log: Callable[[str], None] = lambda _: None,
 ) -> ServeReport:
     menu, paths, targets = load_multi(bundle)
-    if menu["maw"].get("root") != str(maw.resolve()):
+    recorded_root = menu["maw"].get("root")
+    if not isinstance(recorded_root, str) or Path(recorded_root).resolve() != maw.resolve():
         raise CrabError("multi-prey bundle belongs to a different maw")
     cards, skipped = select_cards(menu, options, ledger)
     # Bound the whole invocation, not each individual source dispatch.

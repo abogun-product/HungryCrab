@@ -47,6 +47,21 @@ DEFAULT_CONFIG_TEXT = """\
 license: null              # SPDX id of this repository; detected from LICENSE when null
 mode: normal               # normal | strict. Strict downgrades COPY code to clean-room
                            # REIMPLEMENT; configs and templates remain copyable.
+profile: balanced          # balanced | library | cli | service | frontend; explicit hunger wins
+memory:
+  enabled: true            # confirmed decisions influence ranking; explicit weights still win
+  min_decisions: 3
+  strength: 0.3            # bounded multiplier; never changes license or hunger ceilings
+hunt:
+  queries: []              # derive up to four GitHub searches from enabled maw gaps
+  exclude: []
+  licenses: []
+  min_stars: 20
+  max_repo_kb: 307200
+  max_candidates: 50
+  limit: 10
+  include_seen: false
+  allow_unknown_size: false
 hunger:                    # per nutrient category: true | false | issues-only | ideas-only
   security: true
   ci: true
@@ -91,7 +106,8 @@ loop:
   cadence: daily           # cadence belongs to your scheduler; the CLI never starts one
   autonomy: serve          # read | serve | work; merging always belongs to a human
   work_authorized: false   # the maw owner must explicitly authorize work, including tags
-  prey: []                 # fixed owner/repo list; HUNT selects at most three from this list
+  discovery: false         # opt in to a lease-bound HUNT shortlist
+  prey: []                 # fixed allowlist; empty requires discovery
   budget:
     phases_per_day: 4
     prey_per_round: 2
@@ -288,12 +304,7 @@ def write_default_config(root: Path, *, force: bool = False, profile: str = "bal
     path = root / CONFIG_FILE
     if path.exists() and not force:
         raise CrabError(f"{path} already exists", hint="pass --force to overwrite it")
-    text = (
-        "profile: "
-        + profile
-        + "\nmemory:\n  enabled: true\n  min_decisions: 3\n  strength: 0.3\n"
-        + DEFAULT_CONFIG_TEXT
-    )
+    text = DEFAULT_CONFIG_TEXT.replace("profile: balanced", "profile: " + profile, 1)
     text = replace_section(text, "hunger", hunger_for(profile))
     atomic_text(path, text)
     return path

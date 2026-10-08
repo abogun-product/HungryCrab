@@ -163,7 +163,7 @@ class Meal:
             extra={
                 key: value
                 for key, value in data.items()
-                if key not in {f.name for f in fields(cls)}
+                if key not in {f.name for f in fields(cls)} - {"extra"}
             },
         )
 

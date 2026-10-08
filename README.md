@@ -180,6 +180,9 @@ below.
 
 - `license`: SPDX id for the maw, or auto-detect from `LICENSE` when omitted.
 - `mode`: `normal` or `strict`; strict downgrades COPY code to clean-room REIMPLEMENT while configurations and templates stay copyable.
+- `profile`: reviewed hunger defaults for balanced, library, CLI, service or frontend projects.
+- `memory`: bounded learning from confirmed owner decisions, with an explicit off switch.
+- `hunt`: bounded GitHub discovery queries, size/stars/license filters and revisiting policy.
 - `hunger`: enable, disable, or cap each nutrient category with `issues-only` / `ideas-only`.
 - `ignore`: maw-side git-style paths excluded from its own digest, in `crab compare` and in
   `crab digest <maw> --maw <maw>`; a prey's own `.crab.yml` is data and is never read.
@@ -199,6 +202,21 @@ This is the current commented template written by `crab init`:
 license: null              # SPDX id of this repository; detected from LICENSE when null
 mode: normal               # normal | strict. Strict downgrades COPY code to clean-room
                            # REIMPLEMENT; configs and templates remain copyable.
+profile: balanced          # balanced | library | cli | service | frontend; explicit hunger wins
+memory:
+  enabled: true            # confirmed decisions influence ranking; explicit weights still win
+  min_decisions: 3
+  strength: 0.3            # bounded multiplier; never changes license or hunger ceilings
+hunt:
+  queries: []              # derive up to four GitHub searches from enabled maw gaps
+  exclude: []
+  licenses: []
+  min_stars: 20
+  max_repo_kb: 307200
+  max_candidates: 50
+  limit: 10
+  include_seen: false
+  allow_unknown_size: false
 hunger:                    # per nutrient category: true | false | issues-only | ideas-only
   security: true
   ci: true
@@ -243,7 +261,8 @@ loop:
   cadence: daily           # cadence belongs to your scheduler; the CLI never starts one
   autonomy: serve          # read | serve | work; merging always belongs to a human
   work_authorized: false   # the maw owner must explicitly authorize work, including tags
-  prey: []                 # fixed owner/repo list; HUNT selects at most three from this list
+  discovery: false         # opt in to a lease-bound HUNT shortlist
+  prey: []                 # fixed allowlist; empty requires discovery
   budget:
     phases_per_day: 4
     prey_per_round: 2
