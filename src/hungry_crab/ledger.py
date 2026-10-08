@@ -92,10 +92,8 @@ class LedgerEntry:
                 for name in ("id", "category", "key", "title", "prey", "sha", "status")
             )
             or not entry.id
-            or not entry.category
-            or not entry.key
         ):
-            raise CrabError("ledger entry identity and status must be non-empty strings")
+            raise CrabError("ledger id must be non-empty and entry metadata must be strings")
         if (
             isinstance(entry.score, bool)
             or not isinstance(entry.score, int | float)
