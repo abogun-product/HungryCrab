@@ -263,7 +263,7 @@ def test_control_registry_cannot_authorize_work_for_a_foreign_maw(
         ),
         encoding="utf-8",
     )
-    loop.config.path.write_text("loop:\n  autonomy: serve\n", encoding="utf-8")
+    loop.config.path.write_text("loop:\n  autonomy: serve\n  prey:\n    - example/other\n", encoding="utf-8")
     foreign = Loop(loop.maw, control, provider=loop.provider, now=NOW)
     foreign.init()
     assert foreign.settings.autonomy == "serve"
@@ -274,6 +274,35 @@ def test_control_registry_cannot_authorize_work_for_a_foreign_maw(
     assert not foreign.next()["ready"]
     assert foreign.path.read_bytes() == before
     assert loop.path.read_bytes() != foreign.path.read_bytes()
+
+
+
+@pytest.mark.parametrize("external_prey", [
+    ["example/other", "foreign/unapproved"],
+    ["foreign/unapproved"],
+    ["example/other", "example/other"],
+])
+def test_control_cannot_widen_or_duplicate_maw_prey(
+    loop: Loop, tmp_path: Path, external_prey: list[str]
+) -> None:
+    control = tmp_path / "control"
+    (control / ".crab").mkdir(parents=True)
+    (control / ".crab" / "maws.yml").write_text(
+        yaml.safe_dump({"maws": [{"repo": "example/maw", "path": "../maw", "prey": external_prey}]}),
+        encoding="utf-8",
+    )
+    with pytest.raises(UsageError, match="subset"):
+        Loop(loop.maw, control, provider=loop.provider, now=NOW)
+
+
+def test_control_may_narrow_maw_prey(loop: Loop, tmp_path: Path) -> None:
+    control = tmp_path / "control"
+    (control / ".crab").mkdir(parents=True)
+    (control / ".crab" / "maws.yml").write_text(
+        yaml.safe_dump({"maws": [{"repo": "example/maw", "path": "../maw", "prey": ["example/other"]}]}),
+        encoding="utf-8",
+    )
+    assert Loop(loop.maw, control, provider=loop.provider, now=NOW).settings.prey == ["example/other"]
 
 
 def test_limits_and_policy_block_without_spending(loop: Loop) -> None:

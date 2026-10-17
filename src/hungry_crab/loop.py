@@ -192,7 +192,13 @@ class Loop:
         if cadence not in {"daily", "weekly"}:
             raise UsageError("invalid control cadence")
         self.settings.cadence = cadence
-        self.settings.prey = strings(entry.get("prey", self.settings.prey), "control.prey")
+        owner_prey = self.settings.prey
+        control_prey = strings(entry.get("prey", owner_prey), "control.prey")
+        if len(control_prey) != len(set(control_prey)) or any(
+            prey not in owner_prey for prey in control_prey
+        ):
+            raise UsageError("control.prey must be a unique subset of maw-owned prey")
+        self.settings.prey = control_prey
 
     def _load(self) -> dict[str, Any]:
         safe_parent(self.path)
