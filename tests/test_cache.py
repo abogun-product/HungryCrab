@@ -96,4 +96,3 @@ def test_ambiguous_owner_repo_logs_remote_fallback(
     assert len(messages) == 1
     assert "not a directory here" in messages[0]
     assert "github.com/vendor/lib" in messages[0]
-
