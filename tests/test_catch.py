@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from hungry_crab.cache import Slug, prey_paths
-from hungry_crab.errors import UsageError
+from hungry_crab.errors import ExternalCommandError, UsageError
 from hungry_crab.fetch.catch import CatchOptions, catch, clone_arguments, parse_since
 from hungry_crab.fetch.git import git_env
 
@@ -107,3 +107,48 @@ def test_prey_clones_never_fetch_lfs_content() -> None:
     is ever built or run, so a pointer says as much as the object it stands in for.
     """
     assert git_env()["GIT_LFS_SKIP_SMUDGE"] == "1"
+
+
+@pytest.mark.parametrize("existing_metadata", [False, True])
+def test_failed_clone_removes_partial_prey_without_losing_other_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, existing_metadata: bool
+) -> None:
+    slug = Slug("example", "failed-prey")
+    root = tmp_path / "cache"
+    paths = prey_paths(slug, root)
+    if existing_metadata:
+        paths.root.mkdir(parents=True)
+        (paths.root / "keep.json").write_text("preserve", encoding="utf-8")
+
+    class BrokenGit:
+        def __init__(self, path: Path, timeout: int | None = None) -> None:
+            self.path = path
+
+        def run(self, *args: str) -> None:
+            paths.repo.mkdir(parents=True, exist_ok=True)
+            (paths.repo / "partial").write_text("incomplete", encoding="utf-8")
+            raise ExternalCommandError("simulated failed clone")
+
+    monkeypatch.setattr("hungry_crab.fetch.catch.GitRunner", BrokenGit)
+    with pytest.raises(ExternalCommandError, match="simulated failed clone"):
+        catch(slug, cache_root=root, source_url=str(tmp_path / "missing.git"), now=NOW)
+    assert not paths.repo.exists()
+    assert not paths.catch_file.exists()
+    if existing_metadata:
+        assert (paths.root / "keep.json").read_text(encoding="utf-8") == "preserve"
+    else:
+        assert not paths.root.exists()
+
+
+def test_invalid_since_does_not_create_cache_directory(tmp_path: Path) -> None:
+    slug = Slug("example", "failed-prey")
+    root = tmp_path / "cache"
+    with pytest.raises(UsageError, match="cannot parse --since"):
+        catch(
+            slug,
+            CatchOptions(since="nonsense"),
+            cache_root=root,
+            source_url=str(tmp_path / "missing.git"),
+            now=NOW,
+        )
+    assert not prey_paths(slug, root).root.exists()
