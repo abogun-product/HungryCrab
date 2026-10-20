@@ -103,7 +103,10 @@ def catch(
 ) -> CatchResult:
     """Clone or refresh the prey. ``source_url`` overrides the GitHub URL (used by tests)."""
     opts = options or CatchOptions()
+    # Validate command input before creating any cache directories.
+    clone_args = clone_arguments(opts, now=now)
     paths = prey_paths(slug, cache_root)
+    root_existed = paths.root.exists()
     paths.root.mkdir(parents=True, exist_ok=True)
     repo_dir = paths.repo
     url = source_url or slug.clone_url
@@ -126,7 +129,20 @@ def catch(
             rmtree_force(repo_dir)
         log(f"cloning {url} into {repo_dir}")
         parent = GitRunner(paths.root, timeout=3600)
-        parent.run(*clone_arguments(opts, now=now), url, str(repo_dir))
+        try:
+            parent.run(*clone_args, url, str(repo_dir))
+        except Exception:
+            # A partial clone is never a valid cached prey. Preserve any pre-existing
+            # digests and metadata, but remove only the failed new checkout.
+            if repo_dir.exists():
+                rmtree_force(repo_dir)
+            if not root_existed:
+                for directory in (paths.root, paths.root.parent):
+                    try:
+                        directory.rmdir()
+                    except OSError:
+                        break
+            raise
         git = GitRunner(repo_dir)
 
     issues_fetched = 0
