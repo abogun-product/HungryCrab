@@ -198,6 +198,9 @@ class Loop:
             prey not in owner_prey for prey in control_prey
         ):
             raise UsageError("control.prey must be a unique subset of maw-owned prey")
+        # External control may narrow a fixed owner list, not silently switch it to discovery.
+        if owner_prey and not control_prey and self.settings.discovery:
+            raise UsageError("control.prey cannot clear owner prey while discovery is enabled")
         self.settings.prey = control_prey
 
     def _load(self) -> dict[str, Any]:
