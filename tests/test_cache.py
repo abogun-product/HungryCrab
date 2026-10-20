@@ -60,6 +60,7 @@ def test_resolve_target_prefers_existing_directory(tmp_path: Path) -> None:
     assert remote == Target(slug=Slug("owner", "repo"))
     assert remote.label == "owner/repo"
 
+
 def test_existing_file_is_not_a_remote_repository(tmp_path: Path) -> None:
     path = tmp_path / "README.md"
     path.write_text("# A file, not a prey directory\\n", encoding="utf-8")
