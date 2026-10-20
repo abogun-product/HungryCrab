@@ -164,11 +164,11 @@ class Target:
         return self.path.name or str(self.path)
 
 
-def resolve_target(
-    text: str, *, log: Callable[[str], None] | None = None
-) -> Target:
+def resolve_target(text: str, *, log: Callable[[str], None] | None = None) -> Target:
     """Prefer local directories; never guess GitHub from an explicit missing path."""
     raw = text.strip()
+    if not raw:
+        raise UsageError("repository target must not be empty")
     candidate = Path(raw).expanduser()
     if candidate.is_dir():
         return Target(path=candidate.resolve())
