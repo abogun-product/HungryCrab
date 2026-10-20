@@ -70,7 +70,7 @@ def test_pr_branch_cli_threads_configured_provider_identity(monkeypatch, tmp_pat
 
     prey_clone = tmp_path / "prey"
     monkeypatch.setattr(
-        cli, "resolve_target", lambda _prey: SimpleNamespace(path=prey_clone, slug=None)
+        cli, "resolve_target", lambda _prey, **_kwargs: SimpleNamespace(path=prey_clone, slug=None)
     )
     monkeypatch.setattr(cli.MawConfig, "load", lambda _maw: config)
     monkeypatch.setattr(cli.Ledger, "load", lambda *_args, **_kwargs: ledger)
