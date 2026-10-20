@@ -372,7 +372,7 @@ def _maw_ignore_for(target: Target, config: MawConfig | None) -> list[str]:
 
 
 def cmd_digest(args: argparse.Namespace, log: Callable[[str], None]) -> int:
-    target = resolve_target(args.target)
+    target = resolve_target(args.target, log=log)
     maw_license = _resolve_maw_license(args.maw, args.maw_license)
     # `.crab.yml` is control-plane configuration and comes from an explicit --maw only; a local
     # target is prey, whatever files it carries.
@@ -453,7 +453,7 @@ def _maw_dir(value: Path) -> Path:
 
 
 def cmd_compare(args: argparse.Namespace, log: Callable[[str], None]) -> int:
-    prey = resolve_target(args.prey)
+    prey = resolve_target(args.prey, log=log)
     maw = _maw_dir(args.maw)
     digest_options = DigestOptions(
         depth=args.depth,
@@ -544,7 +544,7 @@ def print_serve_report(report: ServeReport) -> None:
 
 
 def cmd_serve(args: argparse.Namespace, log: Callable[[str], None]) -> int:
-    prey = resolve_target(args.prey)
+    prey = resolve_target(args.prey, log=log)
     maw = _maw_dir(args.maw)
     config = MawConfig.load(maw)
     ledger = Ledger.load(config.ledger_path(args.cache_dir), maw=maw.name)
@@ -653,7 +653,7 @@ def cmd_tune(args: argparse.Namespace) -> int:
 
 
 def cmd_menu(args: argparse.Namespace, log: Callable[[str], None]) -> int:
-    prey = resolve_target(args.prey)
+    prey = resolve_target(args.prey, log=log)
     meal_dir = meal_for(prey, _maw_dir(args.maw), DigestOptions(cache_root=args.cache_dir))
     menu = load_menu(meal_dir)
     if menu is None:
