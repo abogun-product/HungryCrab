@@ -305,6 +305,45 @@ def test_control_may_narrow_maw_prey(loop: Loop, tmp_path: Path) -> None:
     assert Loop(loop.maw, control, provider=loop.provider, now=NOW).settings.prey == ["example/other"]
 
 
+
+def test_external_control_cannot_clear_fixed_prey_into_discovery(
+    loop: Loop, tmp_path: Path
+) -> None:
+    config = yaml.safe_load(loop.config.path.read_text(encoding="utf-8"))
+    config["loop"]["discovery"] = True
+    loop.config.path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    control = tmp_path / "control"
+    (control / ".crab").mkdir(parents=True)
+    (control / ".crab" / "maws.yml").write_text(
+        yaml.safe_dump(
+            {"maws": [{"repo": "example/maw", "path": "../maw", "prey": []}]}
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(UsageError, match="cannot clear owner prey"):
+        Loop(loop.maw, control, provider=loop.provider, now=NOW)
+
+
+def test_owner_discovery_only_mode_accepts_empty_control_prey(
+    loop: Loop, tmp_path: Path
+) -> None:
+    config = yaml.safe_load(loop.config.path.read_text(encoding="utf-8"))
+    config["loop"]["discovery"] = True
+    config["loop"]["prey"] = []
+    loop.config.path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    control = tmp_path / "control"
+    (control / ".crab").mkdir(parents=True)
+    (control / ".crab" / "maws.yml").write_text(
+        yaml.safe_dump(
+            {"maws": [{"repo": "example/maw", "path": "../maw", "prey": []}]}
+        ),
+        encoding="utf-8",
+    )
+    checked = Loop(loop.maw, control, provider=loop.provider, now=NOW)
+    assert checked.settings.discovery is True
+    assert checked.settings.prey == []
+
+
 def test_limits_and_policy_block_without_spending(loop: Loop) -> None:
     assert isinstance(loop.provider, Provider)
     force_phase(loop, "serve")
