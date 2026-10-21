@@ -14,6 +14,11 @@ tracked in [docs/design/03-roadmap.md](docs/design/03-roadmap.md); this file tra
 
 ### Added
 
+- **Ruby/Bundler dependencies without executing prey Ruby.** Literal `Gemfile` and
+  `.gemspec` declarations and direct `Gemfile.lock` resolutions contribute
+  static dependency evidence; dynamic Ruby remains unknown with explicit warnings
+  ([#148](https://github.com/drevendev/HungryCrab/pull/148)).
+
 - **Digest coverage is two numbers, and one of them is a gate.** `files_counted / files` could
   not tell a sample corpus the crab skipped on purpose from prey it failed to read, and it
   moved when somebody ran `npm ci`. The inventory now records a `coverage` block, lifted into
@@ -155,6 +160,12 @@ tracked in [docs/design/03-roadmap.md](docs/design/03-roadmap.md); this file tra
 
 ### Changed
 
+- **Canonical digest cache publication is generation-based.** Published digests use
+  `digests/.generations/<sha>/<generation>/` with `digests/.refs/<sha>.json`
+  for the selected generation, while dirty/shallow/selective requests use
+  `digests/.scratch/`. This replaces the old direct `digests/<sha>/` publication
+  assumption and matters to cache inspection/recovery (#150–#157).
+
 - **A digest describes one repository; a meal describes a pair.** `crab compare` used to write
   `menu.md`, `gap.md` and `compare.json` into the prey's digest, which every maw that eats that
   prey shares — so a second maw silently overwrote the first one's menu, and the licence verdict,
@@ -183,6 +194,11 @@ tracked in [docs/design/03-roadmap.md](docs/design/03-roadmap.md); this file tra
   Installs track `master`; a release tag is opt-in.
 
 ### Fixed
+
+- **Unknown SPDX `WITH` exceptions fail closed.** A missing exception rule
+  cannot silently inherit a concrete GPL copying verdict; such combinations
+  now require explicit human review
+  ([#149](https://github.com/drevendev/HungryCrab/pull/149)).
 
 - **GitHub REST responses have a byte budget before JSON decoding.** Both `gh api` and
   HTTPS refuse a response larger than 8 MiB instead of buffering it without a bound. The
@@ -504,8 +520,9 @@ repository.
   twenty-four candidates, all scored the same. (Since the content-origin ceiling above, the
   title is generic again, because an issue title is commenter prose; giving the card back its
   structure without the prose is [#130](https://github.com/drevendev/HungryCrab/issues/130).)
-- `crab compare` writes the resolved license verdict into the prey digest's `manifest.json`,
-  which said `null` while `menu.md` said `COPY`.
+- Maw-dependent licence verdicts are recorded in each maw's meal output
+  (`meal.json` / `menu.json`) rather than mutating the shared prey digest's
+  `manifest.json`; the latter has no maw-specific verdict.
 - An issue for a nutrient the maw lacks entirely no longer reads "What this repository has: no".
 - The `eat` skill gained a step: check that the maw column in `gap.md` describes this repository
   before judging anything against it, and guidance to switch a whole category off in `hunger`
