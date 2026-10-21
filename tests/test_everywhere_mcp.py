@@ -1,0 +1,148 @@
+from __future__ import annotations
+
+import os
+import sys
+from pathlib import Path
+
+import pytest
+
+from hungry_crab.errors import UsageError
+from hungry_crab.mcp_service import AnalysisService
+
+
+def test_local_analysis_pages_menu_and_no_source_or_ledger_writes(
+    npm_app: Path, pyproject_cli: Path, tmp_path: Path
+) -> None:
+    service = AnalysisService([npm_app, pyproject_cli], tmp_path / "cache")
+    before = {
+        root: {p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+        for root in (npm_app, pyproject_cli)
+    }
+    digest = service.digest(str(npm_app))
+    assert digest["pages"] and digest["untrusted_data"]
+    page = service.digest(str(npm_app), page="inventory.md")
+    assert "Inventory" in page["page"]["text"]
+    menu = service.menu(str(npm_app), str(pyproject_cli), limit=1)
+    assert len(menu["candidates"]) == 1 and menu["next_offset"] == 1
+    rest = service.menu(str(npm_app), str(pyproject_cli), offset=1, limit=100)
+    assert menu["total"] == 1 + len(rest["candidates"])
+    assert rest["next_offset"] is None
+    assert menu["side_effects"]["ledger_written"] is False
+    for root, files in before.items():
+        assert {
+            p.relative_to(root): p.read_bytes() for p in root.rglob("*") if p.is_file()
+        } == files
+    assert not (pyproject_cli / ".crab" / "ledger.json").exists()
+    with pytest.raises(UsageError, match="listed digest"):
+        service.digest(str(npm_app), page="../LICENSE")
+
+
+@pytest.mark.parametrize("target", ["../outside", "/outside", "", "example/prey"])
+def test_scope_and_network_rejected_before_analysis(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, target: str
+) -> None:
+    root = tmp_path / "approved"
+    root.mkdir()
+    service = AnalysisService([root], tmp_path / "cache")
+    monkeypatch.setattr(
+        "hungry_crab.mcp_service.run_digest", lambda *_: pytest.fail("analysis ran")
+    )
+    with pytest.raises(UsageError):
+        service.digest(target)
+    assert not service.cache.exists()
+
+
+def test_approved_root_cannot_be_escaped_by_filesystem_alias(tmp_path: Path) -> None:
+    root, outside = tmp_path / "approved", tmp_path / "outside"
+    root.mkdir()
+    outside.mkdir()
+    alias = root / "alias"
+    if sys.platform == "win32":
+        import _winapi
+
+        _winapi.CreateJunction(str(outside), str(alias))
+    else:
+        alias.symlink_to(outside, target_is_directory=True)
+    try:
+        with pytest.raises(UsageError, match="outside"):
+            AnalysisService([root], tmp_path / "cache").local("alias")
+    finally:
+        if sys.platform == "win32":
+            alias.rmdir()
+        else:
+            alias.unlink()
+
+
+def test_roots_cache_and_menu_arguments_are_validated_before_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with pytest.raises(UsageError, match="--root"):
+        AnalysisService([], tmp_path / "cache")
+    with pytest.raises(UsageError, match="outside"):
+        AnalysisService([tmp_path], tmp_path / "cache")
+    root = tmp_path / "root"
+    root.mkdir()
+    service = AnalysisService([root], tmp_path / "cache")
+    monkeypatch.setattr(
+        "hungry_crab.mcp_service.compare_for_maw",
+        lambda *_args, **_kwargs: pytest.fail("compare ran"),
+    )
+    for kwargs in ({"category": "typo"}, {"limit": 0}, {"limit": 101}, {"offset": -1}):
+        with pytest.raises(UsageError):
+            service.menu("example/prey", str(root), **kwargs)
+
+
+@pytest.mark.parametrize("mode", ["auto", "legacy"])
+def test_real_stdio_protocol_tools_schema_errors_and_scoped_digest(
+    npm_app: Path, pyproject_cli: Path, tmp_path: Path, mode: str
+) -> None:
+    mcp = pytest.importorskip("mcp")
+    import anyio
+    from mcp.client.stdio import StdioServerParameters
+
+    async def exercise() -> None:
+        env = {
+            key: value
+            for key, value in os.environ.items()
+            if key not in {"GH_TOKEN", "GITHUB_TOKEN"}
+        }
+        env["PYTHONIOENCODING"] = "utf-8"
+        params = StdioServerParameters(
+            command=sys.executable,
+            args=[
+                "-m",
+                "hungry_crab",
+                "--cache-dir",
+                str(tmp_path / "cache"),
+                "mcp",
+                "--root",
+                str(npm_app),
+                "--root",
+                str(pyproject_cli),
+            ],
+            env=env,
+            cwd=tmp_path,
+        )
+        with anyio.fail_after(90):
+            async with mcp.Client(params, mode=mode, read_timeout_seconds=60) as client:
+                listing = await client.list_tools()
+                assert {tool.name for tool in listing.tools} == {"crab_digest", "crab_menu"}
+                for tool in listing.tools:
+                    assert tool.input_schema and tool.output_schema
+                    assert tool.annotations.destructive_hint is False
+                    assert tool.annotations.read_only_hint is False
+                    assert tool.annotations.open_world_hint is False
+                denied = await client.call_tool("crab_digest", {"prey": "example/prey"})
+                assert denied.is_error
+                result = await client.call_tool("crab_digest", {"prey": str(npm_app)})
+                assert not result.is_error
+                assert result.structured_content["manifest"]["schema"] == "hungry-crab.digest/1"
+                menu = await client.call_tool(
+                    "crab_menu", {"prey": str(npm_app), "maw": str(pyproject_cli), "limit": 2}
+                )
+                assert not menu.is_error and menu.structured_content["candidates"]
+                assert not (pyproject_cli / ".crab" / "ledger.json").exists()
+                unknown = await client.call_tool("crab_serve", {})
+                assert unknown.is_error
+
+    anyio.run(exercise)

@@ -332,6 +332,28 @@ def build_parser() -> argparse.ArgumentParser:
     p_rm = cache_sub.add_parser("rm", help="remove one cached prey (clone, API data and digests)")
     p_rm.add_argument("repo")
 
+    p_report = sub.add_parser("report", help="render an existing digest or meal as offline HTML")
+    p_report.add_argument("source", type=Path)
+    p_report.add_argument("--out", type=Path, required=True, help="destination .html file")
+    p_report.add_argument(
+        "--force", action="store_true", help="replace an existing regular HTML file"
+    )
+    p_mcp = sub.add_parser("mcp", help="serve scoped digest/menu tools over MCP stdio")
+    p_mcp.add_argument(
+        "--root",
+        type=Path,
+        action="append",
+        default=[],
+        help="approved local source root (repeatable)",
+    )
+    p_mcp.add_argument(
+        "--allow-network", action="store_true", help="allow remote GitHub/GitLab prey reads"
+    )
+    p_mcp.add_argument(
+        "--check",
+        action="store_true",
+        help="check optional SDK availability without starting a server",
+    )
     sub.add_parser("version", help="print the version")
     for acquisition in (p_catch, p_eat, p_digest, p_compare):
         acquisition.add_argument(
@@ -956,6 +978,35 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "version":
             print(f"crab {__version__}")
+            return 0
+        if args.command == "report":
+            from .report import write_report
+
+            print(write_report(args.source, args.out, force=args.force))
+            return 0
+        if args.command == "mcp":
+            from .mcp_server import create_server
+            from .mcp_service import AnalysisService
+
+            service = AnalysisService(
+                args.root or ([Path.cwd()] if args.check else []),
+                args.cache_dir or cache_root(),
+                allow_network=args.allow_network,
+            )
+            server = create_server(service)
+            if args.check:
+                print(
+                    json.dumps(
+                        {
+                            "server": "hungry-crab",
+                            "version": __version__,
+                            "transport": "stdio",
+                            "tools": ["crab_digest", "crab_menu"],
+                        }
+                    )
+                )
+            else:
+                server.run(transport="stdio")
             return 0
         if args.command == "loop":
             return cmd_loop(args)

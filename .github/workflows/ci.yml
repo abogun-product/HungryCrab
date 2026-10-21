@@ -34,7 +34,7 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy
-      - run: uv build --sdist
+      - run: uv build
       - run: uv run python scripts/check_sdist.py
 
   test:
@@ -82,3 +82,21 @@ jobs:
         run: uv run python -c "from hungry_crab.miners.symbols import runtime_identity; assert runtime_identity()['tree-sitter'] == 'unavailable'"
       - run: uv run pytest tests/test_miner_symbols.py tests/test_deep_channels.py tests/test_deep_manifests.py
       - run: uv run crab digest . --maw . --out digest-out --maw-license MIT --fail-on-miner-error --fail-on-loss
+
+  install:
+    name: Clean installation (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - run: uv sync --locked --all-extras
+      - name: Install source/wheel, exercise stdio MCP and portable skills
+        run: uv run python scripts/install_smoke.py --skills

@@ -23,11 +23,11 @@ Track C · Forks                                        F0 ─ F1 ─ F2
 | 0.3.2 | Scheduled crab | `crab loop`: persisted phases, leases, budgets, retries, control repositories, guarded publication and `/crab:loop` ([operator guide](../scheduled-crab.md), [design](07-scheduled-crab.md)) | Implementation has deterministic tests; live exit evidence remains open in [#242](https://github.com/drevendev/HungryCrab/issues/242): ten scheduled wake-ups, a second maw round, a verified MOLT and a human-merged release/tag with measured phase costs. Not released. |
 | 0.4 | Deep Bite | Discussions (GraphQL), PR reviews, CI durations and explicit flaky-rerun report evidence; optional tree-sitter symbols and a conservative lexical call graph; the first `code` producer; eight dependency ecosystems and GitLab.com acquisition; B1 ranking pressure and the B2 experiment pipeline ([guide](../deep-bite.md)) | Implementation covers eight ecosystems and architectural nutrients with symbol-level evidence. Unreleased; the first live B2 sweep is [#250](https://github.com/drevendev/HungryCrab/issues/250). |
 | 0.5 | Taste Memory | scorer learning from the ledger (accepted/rejected by category and maw), `crab hunt --for .` (finding prey for a maw via `gh search` + similarity signals), multi-prey (`eat a b c` → merged menu), hunger profiles by repository type | share of accepted issues grows between iterations on the same maw |
-| 0.6 | Everywhere | MCP server (`crab_digest`, `crab_menu`), PyPI package, `npx skills add`, docs for Codex/Cursor, `crab report` (HTML report of a digest) | the crab is installable and usable from every harness the fleet uses, not only Claude Code |
+| 0.6 | Everywhere | MCP server (`crab_digest`, `crab_menu`), PyPI package, `npx skills add`, docs for Codex/Cursor, `crab report` (HTML report of a digest) | Implementation candidate: local stdio, package install checks and HTML reports. Windows/Linux protocol/install evidence is recorded in its PR; GUI host meals, PyPI publication and earlier release gates remain separate. See [Everywhere](../everywhere.md). |
 | 1.0 | Stable | stable schemas (`nutrient`, `manifest`, `.crab.yml`), semver guarantees, ledger migrations, a set of 50 license test repositories, public benchmarks | schemas frozen, changelog and release automation — on the crab itself |
 
 Released: **0.2.0**, the only tag so far. Milestones complete: **0.2.1** and **0.2.2**, both on
-`master` and in no tag. Development candidate: **0.5 Taste Memory**; 0.3 release evidence remains open.
+`master` and in no tag. Development candidate: **0.6 Everywhere**; 0.3 release evidence remains open.
 
 ### Project state and integration order (2026-10-21)
 
@@ -58,6 +58,15 @@ mean upstream fork workflows have been approved. The remote #211 branch has no u
 implementation; its Windows reparse-point/cache-removal issue remains open. The #267
 transport branch is already included in master through #268. Do not recover either as a
 second implementation merely because its remote ref still exists.
+
+### Everywhere implementation candidate (2026-10-21)
+
+0.6 adds optional official-SDK stdio tools (`crab_digest`, `crab_menu`), explicit local roots,
+opt-in remote reads, offline `crab report` views and an isolated wheel/sdist installation gate.
+The base runtime still depends only on PyYAML. Clean install and actual protocol calls are
+verified on Windows/Linux; host-specific connection recipes and portable skills are in the
+[operator guide](../everywhere.md). This is not a published 0.6 release, an assertion that every
+GUI host ran a meal, a PyPI upload, or a waiver of #224/#236/#242/#243/#250/#256.
 
 ### Next delivery priorities
 

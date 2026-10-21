@@ -12,7 +12,13 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 verify_sdist = runpy.run_path(str(ROOT / "scripts" / "check_sdist.py"))["verify_sdist"]
-REQUIRED = ("pyproject.toml", "README.md", "LICENSE", "src/hungry_crab/__init__.py")
+REQUIRED = (
+    "pyproject.toml",
+    "README.md",
+    "LICENSE",
+    "src/hungry_crab/__init__.py",
+    "src/hungry_crab/data/report.css",
+)
 
 
 def _archive(tmp_path: Path, *names: str) -> Path:

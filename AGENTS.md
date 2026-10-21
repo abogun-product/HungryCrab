@@ -32,6 +32,9 @@ authority when a document disagrees with it. The decisions log is at the end of
   master. It must never reinstall the CLI in-process: uv cannot replace a running tool on Windows
   and leaves it broken.
 - `src/hungry_crab/fetch/`: git wrapper, GitHub API client, `catch`, issues fetch.
+- `src/hungry_crab/mcp_service.py`, `mcp_server.py`: scoped optional stdio analysis; no publication
+  or ledger writes. `report.py` and `artifact_read.py` render existing evidence as inert HTML.
+  `scripts/install_smoke.py` verifies installed artifacts, not the editable checkout.
 - `src/hungry_crab/miners/`: one module per miner; `__init__.py` is the ordered registry.
 - `src/hungry_crab/licensing/`: SPDX detection, the maw x prey verdict matrix, and `origin.py`,
   the content-origin ceiling that caps commenter prose at IDEAS_ONLY.

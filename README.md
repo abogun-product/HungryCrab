@@ -38,17 +38,13 @@ trace footer. Say no to one and the crab remembers, so it never offers it again.
 The prey is never executed. Not one line of its text reaches your issues unless the license says
 it may.
 
-**Status: [0.2.0 "Menu"](https://github.com/drevendev/HungryCrab/releases/latest) is the latest
-release; the integrated development candidate is 0.5.0.dev0, "Taste Memory".** Taste Memory adds confirmed
-decision learning, gap-directed GitHub discovery, multi-prey menus and reviewed hunger profiles.
-See the [Taste Memory guide](docs/taste-memory.md). Feeder and Scheduled Crab provide
-deterministic meals and guarded publication. Deep Bite adds optional syntax indexes and
-symbol-backed code/architecture cards, Discussions, review comments, CI reliability evidence,
-eight dependency ecosystems and GitLab.com acquisition. B1 now includes a ranking pressure
-gate; B2 has a frozen, blinded experiment pipeline. Release and live acceptance evidence remain
-tracked separately. See the [roadmap](docs/design/03-roadmap.md),
-[Deep Bite guide](docs/deep-bite.md), [Feeder guide](docs/feeder.md) and
-[Scheduled Crab guide](docs/scheduled-crab.md).
+**Status: [0.2.0 Menu](https://github.com/drevendev/HungryCrab/releases/latest) remains the
+latest release. The integrated development candidate is 0.6.0.dev0, Everywhere.** It adds local
+MCP digest/menu tools, an optional install extra and standalone offline HTML reports on top of
+the unreleased Feeder, Scheduled Crab, Deep Bite and Taste Memory implementations. Release and
+live usefulness evidence remain separate. Start with the [Everywhere guide](docs/everywhere.md)
+for installation, host configuration and reports; see the [roadmap](docs/design/03-roadmap.md)
+for the remaining release gates.
 
 ## The metaphor, in five words
 
@@ -187,6 +183,17 @@ or `--shallow` (default branch, tree only).
 Run `crab eat pypa/pipx --deterministic --maw .` to export a complete meal without a model,
 issue creation or ledger writes. The [Feeder guide](docs/feeder.md) shows the composite action,
 reusable workflow, weekly schedule, artifact outputs and strict mode.
+
+## Local MCP and HTML reports
+
+Install with the optional `[mcp]` extra and run `crab mcp --root /absolute/workspace` to expose
+`crab_digest` and `crab_menu`. Local roots are explicit, network reads are opt-in and neither
+tool publishes or writes the ledger. `crab mcp --check` checks the optional install and exits.
+
+`crab report /path/to/digest-or-meal --out report.html` creates a self-contained browser report
+from existing artifacts, with no network, JavaScript or model calls. See the
+[Everywhere guide](docs/everywhere.md) for the development-candidate install command,
+Codex/Cursor/Claude configurations, portable skills and the clean-install verification.
 
 ## Configuration
 

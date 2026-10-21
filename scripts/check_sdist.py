@@ -21,7 +21,13 @@ def verify_sdist(archive: Path) -> None:
         raise ValueError(f"sdist must have one package root, got {sorted(roots)}")
 
     relative = {PurePosixPath(*member.parts[1:]).as_posix() for member in members}
-    required = {"pyproject.toml", "README.md", "LICENSE", "src/hungry_crab/__init__.py"}
+    required = {
+        "pyproject.toml",
+        "README.md",
+        "LICENSE",
+        "src/hungry_crab/__init__.py",
+        "src/hungry_crab/data/report.css",
+    }
     missing = required - relative
     if missing:
         raise ValueError(f"sdist lacks required files: {sorted(missing)}")
