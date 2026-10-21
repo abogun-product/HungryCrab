@@ -61,7 +61,9 @@ packages = ["src/hungry_crab"]
 # A source distribution is an installable CLI source archive, not a broken test checkout.
 # Repository tests depend on hooks, plugins, benchmarks and synthetic git fixture assets.
 # Keep running the full tests in CI from the repository checkout instead.
-include = ["src/hungry_crab", "docs", "README.md", "LICENSE", "CHANGELOG.md"]
+# Hatch's only-include is an explicit top-level selection, unlike glob-style include.
+only-include = ["src/hungry_crab", "docs", "README.md", "LICENSE", "CHANGELOG.md"]
+exclude = ["/tests", "/tests/**"]
 
 [tool.ruff]
 line-length = 100
