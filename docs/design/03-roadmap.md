@@ -27,7 +27,7 @@ Track C · Forks                                        F0 ─ F1 ─ F2
 | 1.0 | Stable | stable schemas (`nutrient`, `manifest`, `.crab.yml`), semver guarantees, ledger migrations, a set of 50 license test repositories, public benchmarks | schemas frozen, changelog and release automation — on the crab itself |
 
 Released: **0.2.0**, the only tag so far. Milestones complete: **0.2.1** and **0.2.2**, both on
-`master` and in no tag. Development: **0.4 Deep Bite**; 0.3 release evidence remains open.
+`master` and in no tag. Development candidate: **0.5 Taste Memory**; 0.3 release evidence remains open.
 
 ### Project state and integration order (2026-10-21)
 
