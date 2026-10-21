@@ -59,3 +59,40 @@ def test_resolve_target_prefers_existing_directory(tmp_path: Path) -> None:
     remote = resolve_target("owner/repo")
     assert remote == Target(slug=Slug("owner", "repo"))
     assert remote.label == "owner/repo"
+
+
+def test_existing_file_is_not_a_remote_repository(tmp_path: Path) -> None:
+    path = tmp_path / "README.md"
+    path.write_text("# A file, not a prey directory\\n", encoding="utf-8")
+    with pytest.raises(UsageError, match="not a directory"):
+        resolve_target(str(path))
+
+
+@pytest.mark.parametrize("missing", ["./missing", "../missing", "C:\\\\missing", "~/_missing"])
+def test_missing_explicit_target_never_becomes_github(missing: str) -> None:
+    with pytest.raises(UsageError, match="no such directory"):
+        resolve_target(missing)
+
+
+def test_missing_absolute_target_is_an_error(tmp_path: Path) -> None:
+    with pytest.raises(UsageError, match="no such directory"):
+        resolve_target(str(tmp_path / "does-not-exist"))
+
+
+def test_missing_plain_local_name_is_not_a_repo() -> None:
+    with pytest.raises(UsageError, match="no such directory"):
+        resolve_target("missing")
+    with pytest.raises(UsageError, match="must not be empty"):
+        resolve_target("")
+
+
+def test_ambiguous_owner_repo_logs_remote_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    messages: list[str] = []
+    target = resolve_target("vendor/lib", log=messages.append)
+    assert target == Target(slug=Slug("vendor", "lib"))
+    assert len(messages) == 1
+    assert "not a directory here" in messages[0]
+    assert "github.com/vendor/lib" in messages[0]

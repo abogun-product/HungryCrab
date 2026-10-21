@@ -117,6 +117,7 @@ def catch(
     if any(not 0 <= n <= 3000 for n in (opts.issues, opts.discussions, opts.reviews, opts.runs)):
         raise UsageError("--issues, --discussions, --reviews and --runs must be in 0..3000")
     paths = prey_paths(slug, cache_root)
+    root_existed = paths.root.exists()
     paths.root.mkdir(parents=True, exist_ok=True)
     repo_dir = paths.repo
     url = source_url or slug.clone_url
@@ -186,20 +187,29 @@ def catch(
     else:
         log(f"cloning {url} into {repo_dir}")
         try:
-            _clone_replace(repo_dir, url, clone_args, token=token, auth_host=auth_host)
-        except ExternalCommandError as exc:
-            if opts.shallow and opts.since and "no commits selected" in exc.message.lower():
-                log("history window has no commits; catching a depth-1 tree snapshot instead")
-                _clone_replace(
-                    repo_dir,
-                    url,
-                    clone_arguments(CatchOptions(shallow=True)),
-                    token=token,
-                    auth_host=auth_host,
-                )
-                history_window_applied = False
-            else:
-                raise
+            try:
+                _clone_replace(repo_dir, url, clone_args, token=token, auth_host=auth_host)
+            except ExternalCommandError as exc:
+                if opts.shallow and opts.since and "no commits selected" in exc.message.lower():
+                    log("history window has no commits; catching a depth-1 tree snapshot instead")
+                    _clone_replace(
+                        repo_dir,
+                        url,
+                        clone_arguments(CatchOptions(shallow=True)),
+                        token=token,
+                        auth_host=auth_host,
+                    )
+                    history_window_applied = False
+                else:
+                    raise
+        except Exception:
+            if not root_existed:
+                for directory in (paths.root, paths.root.parent):
+                    try:
+                        directory.rmdir()
+                    except OSError:
+                        break
+            raise
         git = GitRunner(repo_dir)
 
     wiki_info: dict[str, object] = {"status": "disabled", "sha": None}

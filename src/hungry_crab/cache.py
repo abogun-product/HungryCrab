@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -184,9 +185,29 @@ class Target:
         return self.path.name or str(self.path)
 
 
-def resolve_target(text: str) -> Target:
-    """A directory that exists wins; otherwise parse a supported forge reference."""
-    candidate = Path(text).expanduser()
+def resolve_target(text: str, *, log: Callable[[str], None] | None = None) -> Target:
+    """Prefer local directories; never guess GitHub from an explicit missing path."""
+    raw = text.strip()
+    if not raw:
+        raise UsageError("repository target must not be empty")
+    candidate = Path(raw).expanduser()
     if candidate.is_dir():
         return Target(path=candidate.resolve())
-    return Target(slug=Slug.parse(text))
+    if candidate.exists() or candidate.is_symlink():
+        raise UsageError(f"{text!r} is not a directory; the crab eats directories or owner/repo")
+
+    explicit_path = (
+        raw.startswith(("./", "../", ".\\", "..\\", "/", "\\", "~"))
+        or "\\" in raw
+        or re.match(r"^[A-Za-z]:", raw) is not None
+    )
+    local_name = "/" not in raw and ":" not in raw and "@" not in raw
+    if explicit_path or local_name:
+        raise UsageError(f"no such directory: {text!r}")
+
+    slug = Slug.parse(text)
+    if log is not None and not raw.startswith(
+        ("https://", "http://", "github.com/", "git@github.com:", "ssh://")
+    ):
+        log(f"{text} is not a directory here; interpreting as github.com/{slug}")
+    return Target(slug=slug)

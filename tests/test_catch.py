@@ -238,3 +238,49 @@ def test_stale_prey_uses_a_tree_snapshot_on_clone_and_refresh(
     second = catch(slug, opts, cache_root=cache, source_url=npm_app.as_uri(), now=now)
     assert second.updated and second.sha == first.sha
     assert second.history_window_applied is False
+
+
+@pytest.mark.parametrize("existing_metadata", [False, True])
+def test_failed_clone_removes_partial_prey_without_losing_other_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, existing_metadata: bool
+) -> None:
+    slug = Slug("example", "failed-prey")
+    root = tmp_path / "cache"
+    paths = prey_paths(slug, root)
+    if existing_metadata:
+        paths.root.mkdir(parents=True)
+        (paths.root / "keep.json").write_text("preserve", encoding="utf-8")
+
+    class BrokenGit:
+        def __init__(self, path: Path, timeout: int | None = None, **kwargs: object) -> None:
+            self.path = path
+
+        def run(self, *args: str) -> None:
+            staged = Path(args[-1])
+            staged.mkdir(parents=True, exist_ok=True)
+            (staged / "partial").write_text("incomplete", encoding="utf-8")
+            raise ExternalCommandError("simulated failed clone")
+
+    monkeypatch.setattr("hungry_crab.fetch.catch.GitRunner", BrokenGit)
+    with pytest.raises(ExternalCommandError, match="simulated failed clone"):
+        catch(slug, cache_root=root, source_url=str(tmp_path / "missing.git"), now=NOW)
+    assert not paths.repo.exists()
+    assert not paths.catch_file.exists()
+    if existing_metadata:
+        assert (paths.root / "keep.json").read_text(encoding="utf-8") == "preserve"
+    else:
+        assert not paths.root.exists()
+
+
+def test_invalid_since_does_not_create_cache_directory(tmp_path: Path) -> None:
+    slug = Slug("example", "failed-prey")
+    root = tmp_path / "cache"
+    with pytest.raises(UsageError, match="cannot parse --since"):
+        catch(
+            slug,
+            CatchOptions(since="nonsense"),
+            cache_root=root,
+            source_url=str(tmp_path / "missing.git"),
+            now=NOW,
+        )
+    assert not prey_paths(slug, root).root.exists()
