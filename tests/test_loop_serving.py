@@ -132,6 +132,10 @@ def test_served_issue_becomes_one_licensed_grow_pr_and_protected_payload_is_bloc
     ready = loop.next()
     loop.record(ready["active"]["token"], "trial", "ok", receipt={"tests_passed": True})
     assert not loop.next()["ready"]
-    provider.rows[URL].update(merged_at="today", merge_commit_sha=provider.rows[URL]["head"]["sha"])
+    provider.rows[URL].update(
+        merged_at="today",
+        merge_commit_sha=provider.rows[URL]["head"]["sha"],
+        merge_ci=artifact(sha=provider.rows[URL]["head"]["sha"], merged=True)["merge_ci"],
+    )
     ready = loop.next()
     assert ready["ready"] and ready["phase"] == "taste"

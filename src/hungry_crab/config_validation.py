@@ -75,7 +75,7 @@ def validate(data: dict[str, Any]) -> None:
                 raise UsageError(f"{name} must be a list of strings")
     for name in ("same_owner", "bypass_license"):
         if name in trust and not isinstance(trust[name], bool):
-            raise UsageError(f"trust.{name} must be a boolean")
+            raise UsageError(f"trust.{name} must be a boolean", hint="use unquoted true or false")
     scoring = section(
         data.get("scoring", {}),
         "scoring",

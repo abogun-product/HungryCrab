@@ -167,8 +167,9 @@ def test_harden_rejects_wrong_bump_or_unstable_version(loop: Loop, version: str)
         _release(loop, data, GitRunner(loop.maw), SHA, SHA, [("M", "CHANGELOG.md")], receipt)
 
 
+@pytest.mark.parametrize("merge_style", ["fast-forward", "squash"])
 def test_real_git_molt_harden_round_preserves_dirty_files_and_never_runs_hooks(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, merge_style: str
 ) -> None:
     remote = tmp_path / "remote.git"
     remote.mkdir()
@@ -276,7 +277,10 @@ def test_real_git_molt_harden_round_preserves_dirty_files_and_never_runs_hooks(
     merged_sha = result["sha"]
     GitRunner(remote).run("update-ref", "refs/heads/master", merged_sha)
     provider.rows[result["url"]].update(
-        merged_at="today", merge_commit_sha=merged_sha, state="closed"
+        merged_at="today",
+        merge_commit_sha=merged_sha,
+        state="closed",
+        merge_ci=artifact(sha=merged_sha, merged=True)["merge_ci"],
     )
     git.run("fetch", "origin", "master")
     git.run("reset", "--hard", "FETCH_HEAD")
@@ -305,9 +309,24 @@ def test_real_git_molt_harden_round_preserves_dirty_files_and_never_runs_hooks(
     )
     assert not instance.next()["ready"]
     assert not GitRunner(remote).try_run("rev-parse", "--verify", "refs/tags/v1.3.0")
-    GitRunner(remote).run("update-ref", "refs/heads/master", release["sha"])
+    release_merge = release["sha"]
+    if merge_style == "squash":
+        release_merge = git.run(
+            "commit-tree",
+            f"{release['sha']}^{{tree}}",
+            "-p",
+            merged_sha,
+            "-m",
+            "chore: simulate human squash merge",
+        ).strip()
+        git.run("-c", "core.hooksPath=", "push", "origin", f"{release_merge}:refs/heads/master")
+    else:
+        GitRunner(remote).run("update-ref", "refs/heads/master", release_merge)
     provider.rows[release["url"]].update(
-        merged_at="today", merge_commit_sha=release["sha"], state="closed"
+        merged_at="today",
+        merge_commit_sha=release_merge,
+        state="closed",
+        merge_ci=artifact(sha=release_merge, merged=True)["merge_ci"],
     )
     ready = instance.next()
     hardened = tag(instance, ready["active"]["token"])
@@ -315,9 +334,49 @@ def test_real_git_molt_harden_round_preserves_dirty_files_and_never_runs_hooks(
     assert tag(instance, ready["active"]["token"])["tagged"] == "v1.3.0"
     result = instance.record(ready["active"]["token"], "harden", "ok")
     assert result["phase"] == "hunt" and result["round"] == 2
-    assert GitRunner(remote).run("rev-parse", "refs/tags/v1.3.0").strip() == release["sha"]
+    assert GitRunner(remote).run("rev-parse", "refs/tags/v1.3.0").strip() == release_merge
     assert (maw / "scratch.txt").read_text(encoding="utf-8") == "unrelated dirty file\n"
     assert not hook_marker.exists()
     assert "scratch.txt" not in GitRunner(remote).run(
         "ls-tree", "-r", "--name-only", release["sha"]
     )
+
+
+@pytest.mark.parametrize(
+    "damage", ["missing", "empty", "failed", "pending", "wrong-sha", "stale-head"]
+)
+def test_merge_ci_blocks_waiting_and_tagging_without_effects(
+    loop: Loop, monkeypatch: pytest.MonkeyPatch, damage: str
+) -> None:
+    assert isinstance(loop.provider, Provider)
+    truth = artifact(merged=True)
+    if damage == "missing":
+        truth.pop("merge_ci")
+    elif damage == "empty":
+        truth["merge_ci"]["checks"] = []
+    elif damage == "failed":
+        truth["merge_ci"]["checks"][0]["conclusion"] = "failure"
+    elif damage == "pending":
+        truth["merge_ci"]["checks"][0]["status"] = "in_progress"
+    elif damage == "wrong-sha":
+        truth["merge_ci"]["sha"] = "b" * 40
+    else:
+        truth["head"]["sha"] = "b" * 40
+    loop.provider.rows[URL] = truth
+    force_phase(loop, "harden", prs=[{**landed(), "phase": "harden", "state": "open"}])
+    data = loop._load()
+    data["waiting_on"] = {"kind": "merge", "reason": "waiting for human merge"}
+    loop._save(data)
+    before = loop._load()["phases_today"]
+    assert not loop.next()["ready"]
+    assert loop._load()["phases_today"] == before
+    assert loop._load()["prs"][0]["state"] == "open"
+    force_phase(loop, "harden", prs=[{**landed(), "phase": "harden", "state": "open"}])
+    ready = loop.next()
+
+    def no_git(*_: object, **__: object) -> None:
+        pytest.fail("tagging touched Git before verifying the merge commit CI")
+
+    monkeypatch.setattr("hungry_crab.loop_work.GitRunner", no_git)
+    with pytest.raises(CrabError, match=r"passing CI|reviewed head"):
+        tag(loop, ready["active"]["token"])

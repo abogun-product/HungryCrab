@@ -29,38 +29,60 @@ Track C · Forks                                        F0 ─ F1 ─ F2
 Released: **0.2.0**, the only tag so far. Milestones complete: **0.2.1** and **0.2.2**, both on
 `master` and in no tag. Development: **0.4 Deep Bite**; 0.3 release evidence remains open.
 
-### Implementation and release evidence (2026-10-07)
+### Project state and integration order (2026-10-21)
 
-The pending work for Feeder, wiki/strict policy, Scheduled Crab, explicit-output ownership,
-remote-default refresh and recovered safety fixes is integrated together. This closes the
-implementation branches, not the release or live acceptance criteria:
+This is an audit of upstream `master` at `e33860a`, not a release announcement. The only
+published version is still **0.2.0**. The code available in development candidates reaches
+**0.5.0.dev0**, but that does not close the 0.3 MVP/release gate or prove 0.5 uptake gains.
 
-- **0.3:** licensed PR serving exists. CI now gates the self-digest with both
-  `--fail-on-miner-error` and `--fail-on-loss`. The fleet merge gate, the 30-repository licence
-  acceptance set, the first B2 meal sweep and release-procedure defects still belong to
-  [#224](https://github.com/drevendev/HungryCrab/issues/224).
-- **0.3.1:** the composite action and reusable workflow have live artifact evidence in
-  [#237](https://github.com/drevendev/HungryCrab/pull/237). The size preflight remains distinct
-  from the hard acquisition quota owed by
-  [#236](https://github.com/drevendev/HungryCrab/issues/236).
-- **0.3.2:** the phase protocol is implemented, including ingestion of portable Feeder bundles.
-  Longitudinal live evidence is still
-  [#242](https://github.com/drevendev/HungryCrab/issues/242); host tool-boundary enforcement is
-  [#243](https://github.com/drevendev/HungryCrab/issues/243), before widening work autonomy.
+| Layer | Upstream / candidate status | Remaining evidence |
+|---|---|---|
+| 0.3 Serve foundation | PR serving, attribution, guards and paged digests are on master; safety and output-ownership repairs are in the integration candidate | Three useful human-merged fleet PRs, the 30-repository licence acceptance set and the complete release checklist: [#224](https://github.com/drevendev/HungryCrab/issues/224) |
+| 0.3.1 Feeder | Implemented in #237 and inherited by #246; live fork workflow artifacts exist | Hard acquisition quotas remain [#236](https://github.com/drevendev/HungryCrab/issues/236) |
+| 0.3.2 Scheduled Crab | Implemented in #244 and inherited by #246 | Live phase costs, ten wake-ups and a second maw round: [#242](https://github.com/drevendev/HungryCrab/issues/242); host enforcement before wider work autonomy: [#243](https://github.com/drevendev/HungryCrab/issues/243) |
+| 0.4 Deep Bite | Implemented in #253; symbols, provider signals, eight dependency ecosystems and B2 tooling | Real paid B2 sweep and human audit: [#250](https://github.com/drevendev/HungryCrab/issues/250); authenticated GitLab signals: [#252](https://github.com/drevendev/HungryCrab/issues/252) |
+| 0.5 Taste Memory | Implemented in #259; #270 adds owner-scoped prey restrictions | Held-out uptake comparison: [#256](https://github.com/drevendev/HungryCrab/issues/256); deterministic tests alone do not establish usefulness |
 
-**0.4 Deep Bite** implements symbol-level `code` and architecture nutrients, eight ecosystems,
-provider channels and GitLab.com reads. A frozen synthetic B1 pair now forces 56 candidates to
-compete for 30 places and catches scoring regressions. Larger human labeling remains
-[#200](https://github.com/drevendev/HungryCrab/issues/200). B2 freezes the experiment, imports
-measured transcripts/costs, blinds cards and validates judgments and pinned evidence; it does
-not claim model results from its synthetic tests. Run the live sweep and audit in
-[#250](https://github.com/drevendev/HungryCrab/issues/250), close the 0.3 release evidence and
-validate the scheduled pipeline before widening autonomy. **0.5 Taste Memory** implements
-ledger-guided scoring, bounded GitHub prey discovery, multi-prey menus and reviewed hunger
-profiles; see the [operator guide](../taste-memory.md). Implementation is a development milestone,
-not a release or proof of improved live uptake. Establish the B2 baseline before the held-out
-comparison in [#256](https://github.com/drevendev/HungryCrab/issues/256); preserve the frozen
-0.4 baseline and explicit owner overrides when evaluating learned weights.
+The selected recovery path is one integration candidate on current master containing #270
+(which already contains #259, #253 and #246), #284 (target resolution), #288 (packaging and
+Ruff parity), #283 (offline installation smoke) and #290 (fork CI guidance). Original commits
+and authors are retained. The candidate also repairs the multi-prey selection authorization
+reported on #259, checks actual merge-commit CI for [#285](https://github.com/drevendev/HungryCrab/issues/285),
+and requires exact producer/artifact ownership for [#286](https://github.com/drevendev/HungryCrab/issues/286).
+It includes #270's empty-control-prey fix for [#287](https://github.com/drevendev/HungryCrab/issues/287).
+
+If this candidate is selected, do not separately merge its component stacks (#235, #237,
+#240, #241, #244, #246, #253, #259 and #270), or superseded drafts #175/#234. Open PRs and
+branches are integration proposals until a human merges them; successful fork CI does not
+mean upstream fork workflows have been approved. The remote #211 branch has no unique
+implementation; its Windows reparse-point/cache-removal issue remains open. The #267
+transport branch is already included in master through #268. Do not recover either as a
+second implementation merely because its remote ref still exists.
+
+### Next delivery priorities
+
+1. **Land one verified integration.** Keep the current master fixes, resolve shared contracts,
+   pass Linux/Windows CI on the selected final head, and retain distinct release/live gates.
+2. **Prove a useful first meal.** Follow [First Feast](../FIRST_FEAST.md) / [#281](https://github.com/drevendev/HungryCrab/issues/281):
+   finish the executed fixture walkthrough, audit supported and NO_GAP cards, and obtain three
+   independently accepted improvements. Record reviewer time, false positives and time to first
+   useful result. Establish the frozen 0.4 B2 baseline before comparing learned 0.5 weights.
+3. **Complete the release gate.** Resolve #224's licence corpus, fleet evidence and release
+   checks. Run the paid B2 experiment only with explicit budget authorization. Neither this
+   audit nor integration publishes a tag or enables unattended work.
+4. **Build 0.6 Everywhere around the first useful result.** The next capability milestone with
+   the strongest expected product impact is a small read-first MCP interface (`crab_digest`,
+   `crab_menu`), straightforward distribution and an inspectable report. Reuse the deterministic
+   CLI and its policy; keep publication explicit. Acceptance should include a clean install and
+   a reproducible useful meal in each supported harness. Add host enforcement (#243) and hard
+   quotas (#236) before expanding work autonomy.
+
+The bottleneck is now integration and demonstrated recommendation quality, rather than a
+missing miner. The original human B1 corpus still reports recall 10/10 and noise 19/29;
+its labels and thresholds must remain frozen. The separate 56-candidate ranking-pressure
+fixture catches scoring regressions but does not replace broader human labels (#200), real
+B2 results (#250), or held-out Taste Memory uptake (#256). Evolving Crab E0 remains a later
+track until those foundations and operational costs are established.
 
 A milestone and a release are different things, and conflating them is what produced
 [#37](https://github.com/drevendev/HungryCrab/issues/37): 0.2.2 was declared released in three

@@ -334,9 +334,9 @@ def _previous_explicit_output_ownership(out_dir: Path) -> set[str]:
             ):
                 return set()
             record_names.add(name)
-    # Missing/failed producers invalidate reuse, but the artifact table still records historical
-    # ownership. Keep repair possible without claiming an unlisted caller file.
-    if not record_names <= entry_names:
+    # Every artifact needs a matching producer record before a rerun may replace it.
+    # Missing files or failed producers can be repaired when both ownership tables agree.
+    if record_names != entry_names:
         return set()
     if len({name.casefold() for name in entry_names}) != len(entry_names):
         return set()

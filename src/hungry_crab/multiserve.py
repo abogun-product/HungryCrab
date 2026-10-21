@@ -66,7 +66,7 @@ def serve_many(
         part = serve(
             paths[key],
             maw,
-            replace(options, ids=ids, top=None),
+            replace(options, ids=ids, top=None, explicit_ids=options.owner_selected_ids),
             config=config,
             ledger=ledger,
             client=client,

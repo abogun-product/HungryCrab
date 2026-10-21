@@ -207,7 +207,7 @@ def resolve_target(text: str, *, log: Callable[[str], None] | None = None) -> Ta
 
     slug = Slug.parse(text)
     if log is not None and not raw.startswith(
-        ("https://", "http://", "github.com/", "git@github.com:", "ssh://")
+        ("https://", "http://", "github.com/", "gitlab.com/", "git@", "ssh://")
     ):
-        log(f"{text} is not a directory here; interpreting as github.com/{slug}")
+        log(f"{text} is not a directory here; interpreting as {slug.url.removeprefix('https://')}")
     return Target(slug=slug)

@@ -524,6 +524,12 @@ class ServeOptions:
     top: int | None = None
     mode: str = "dry-run"
     notes: Path | None = None
+    explicit_ids: list[str] | None = None
+
+    @property
+    def owner_selected_ids(self) -> list[str]:
+        """Keep owner authorization separate from internal source-routing IDs."""
+        return self.ids if self.explicit_ids is None else self.explicit_ids
 
 
 @dataclass
@@ -790,7 +796,7 @@ def serve(
             config=config,
             ledger=ledger,
             client=pr_client,
-            explicit_selection=bool(options.ids),
+            explicit_selection=bool(options.owner_selected_ids),
             now=now,
             log=log,
             slug=slug,
@@ -850,7 +856,7 @@ def serve(
             ledger.ensure(card, now=now)
             ledger.mark(card.id, "served", url=str(known.get("url") or "") or None, now=now)
             continue
-        if card.serve_as not in ("issue", "pr") and card.id not in options.ids:
+        if card.serve_as not in ("issue", "pr") and card.id not in options.owner_selected_ids:
             # `hunger: <category>: ideas-only` keeps a category on the menu without issues; an
             # id asked for by name is the user overriding that by hand. Anything that is not a
             # known way to serve (a hand-edited menu) is held back like an idea.

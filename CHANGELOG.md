@@ -245,6 +245,16 @@ tracked in [docs/design/03-roadmap.md](docs/design/03-roadmap.md); this file tra
 
 ### Fixed
 
+- **Integration safety:** multi-prey source routing preserves the owner's original selection,
+  so `--top` cannot bypass `serve.prs: ask` or an ideas-only hunger ceiling. Scheduled landings
+  and release tagging require CI bound to the provider-confirmed merge commit, including squash
+  merges; absent or incomplete evidence keeps the loop waiting without spending a new phase.
+  Explicit-output reruns require exact agreement between artifact and producer ownership tables,
+  protecting caller files from orphan manifest entries (#285, #286, #287).
+- Preserve current-master API response bounds, strict trust validation and the toolchain while
+  integrating Feeder, Scheduled Crab, Deep Bite and Taste Memory. Retain staged clone rollback
+  and forge-qualified target diagnostics alongside the repaired installation/source archive docs.
+
 - **Unknown SPDX `WITH` exceptions fail closed.** A missing exception rule
   cannot silently inherit a concrete GPL copying verdict; such combinations
   now require explicit human review

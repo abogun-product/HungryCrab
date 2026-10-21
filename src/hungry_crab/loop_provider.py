@@ -69,20 +69,34 @@ class GitHubLoopProvider:
             ):
                 raise CrabError("loop provider returned an invalid PR head")
             sha = head["sha"]
-            checks = self._pages(
-                f"repos/{self.slug}/commits/{sha}/check-runs?per_page=100", "check_runs"
-            )
-            data["checks"] = checks
-            try:
-                status = json.loads(self.run("api", f"repos/{self.slug}/commits/{sha}/status"))
-            except ValueError as exc:
-                raise CrabError("loop provider returned invalid commit status JSON") from exc
-            if not isinstance(status, dict) or not isinstance(status.get("statuses"), list):
-                raise CrabError("loop provider returned invalid commit statuses")
-            data["statuses"] = status["statuses"]
-            if any(not isinstance(row, dict) for row in data["statuses"]):
-                raise CrabError("loop provider returned an invalid commit status")
+            data.update(self._commit_ci(sha))
+            if data.get("merged_at"):
+                merge_sha = data.get("merge_commit_sha")
+                if not isinstance(merge_sha, str) or not re.fullmatch(
+                    r"[0-9a-f]{40}|[0-9a-f]{64}", merge_sha
+                ):
+                    raise CrabError("loop provider returned an invalid merge commit")
+                data["merge_ci"] = {"sha": merge_sha, **self._commit_ci(merge_sha)}
         return data
+
+    def _commit_ci(self, sha: str) -> dict[str, Any]:
+        checks = self._pages(
+            f"repos/{self.slug}/commits/{sha}/check-runs?per_page=100", "check_runs"
+        )
+        if any(row.get("head_sha") != sha for row in checks):
+            raise CrabError("loop provider returned checks for a different commit")
+        try:
+            status = json.loads(self.run("api", f"repos/{self.slug}/commits/{sha}/status"))
+        except ValueError as exc:
+            raise CrabError("loop provider returned invalid commit status JSON") from exc
+        if (
+            not isinstance(status, dict)
+            or status.get("sha") != sha
+            or not isinstance(status.get("statuses"), list)
+            or any(not isinstance(row, dict) for row in status["statuses"])
+        ):
+            raise CrabError("loop provider returned invalid commit statuses")
+        return {"checks": checks, "statuses": status["statuses"]}
 
     def counts(self) -> tuple[int, int]:
         rows = self._pages(f"repos/{self.slug}/issues?state=open&per_page=100")

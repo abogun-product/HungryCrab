@@ -19,7 +19,7 @@ from .cache import Slug, prey_paths
 from .errors import CrabError
 from .fetch.git import GitRunner
 from .ledger import Ledger
-from .loop import Loop, _text, ci_state, state_lock
+from .loop import Loop, _text, ci_state, merge_ci_state, state_lock
 from .pr_publication import PreparedPullRequest
 from .publication_safety import format_publication_findings, scan_publication_bundle
 from .serve import GhIssueClient, ServeOptions, serve
@@ -429,6 +429,8 @@ def tag(loop: Loop, token: str) -> dict[str, Any]:
             raise CrabError("release PR must be merged at the reviewed head before tagging")
         if ci_state(truth) != "pass":
             raise CrabError("release PR must have passing CI at the reviewed head before tagging")
+        if merge_ci_state(truth) != "pass":
+            raise CrabError("release merge commit must have passing CI before tagging")
         sha = truth["merge_commit_sha"]
         if truth.get("base", {}).get("ref") != pr.get("base"):
             raise CrabError("release PR base changed since publication")

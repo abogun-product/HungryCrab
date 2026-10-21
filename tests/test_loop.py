@@ -68,6 +68,13 @@ def artifact(
         "body": "<!-- crab:tests:tests.unit -->\nA proposal",
         "merged_at": "today" if merged else None,
         "merge_commit_sha": sha if merged else None,
+        "merge_ci": {
+            "sha": sha,
+            "checks": [{"id": 1, "name": "tests", "status": "completed", "conclusion": ci}],
+            "statuses": [],
+        }
+        if merged
+        else None,
         "checks": [{"id": 1, "name": "tests", "status": "completed", "conclusion": ci}],
         "statuses": [],
     }
@@ -263,7 +270,9 @@ def test_control_registry_cannot_authorize_work_for_a_foreign_maw(
         ),
         encoding="utf-8",
     )
-    loop.config.path.write_text("loop:\n  autonomy: serve\n  prey:\n    - example/other\n", encoding="utf-8")
+    loop.config.path.write_text(
+        "loop:\n  autonomy: serve\n  prey:\n    - example/other\n", encoding="utf-8"
+    )
     foreign = Loop(loop.maw, control, provider=loop.provider, now=NOW)
     foreign.init()
     assert foreign.settings.autonomy == "serve"
@@ -276,19 +285,23 @@ def test_control_registry_cannot_authorize_work_for_a_foreign_maw(
     assert loop.path.read_bytes() != foreign.path.read_bytes()
 
 
-
-@pytest.mark.parametrize("external_prey", [
-    ["example/other", "foreign/unapproved"],
-    ["foreign/unapproved"],
-    ["example/other", "example/other"],
-])
+@pytest.mark.parametrize(
+    "external_prey",
+    [
+        ["example/other", "foreign/unapproved"],
+        ["foreign/unapproved"],
+        ["example/other", "example/other"],
+    ],
+)
 def test_control_cannot_widen_or_duplicate_maw_prey(
     loop: Loop, tmp_path: Path, external_prey: list[str]
 ) -> None:
     control = tmp_path / "control"
     (control / ".crab").mkdir(parents=True)
     (control / ".crab" / "maws.yml").write_text(
-        yaml.safe_dump({"maws": [{"repo": "example/maw", "path": "../maw", "prey": external_prey}]}),
+        yaml.safe_dump(
+            {"maws": [{"repo": "example/maw", "path": "../maw", "prey": external_prey}]}
+        ),
         encoding="utf-8",
     )
     with pytest.raises(UsageError, match="subset"):
@@ -299,11 +312,14 @@ def test_control_may_narrow_maw_prey(loop: Loop, tmp_path: Path) -> None:
     control = tmp_path / "control"
     (control / ".crab").mkdir(parents=True)
     (control / ".crab" / "maws.yml").write_text(
-        yaml.safe_dump({"maws": [{"repo": "example/maw", "path": "../maw", "prey": ["example/other"]}]}),
+        yaml.safe_dump(
+            {"maws": [{"repo": "example/maw", "path": "../maw", "prey": ["example/other"]}]}
+        ),
         encoding="utf-8",
     )
-    assert Loop(loop.maw, control, provider=loop.provider, now=NOW).settings.prey == ["example/other"]
-
+    assert Loop(loop.maw, control, provider=loop.provider, now=NOW).settings.prey == [
+        "example/other"
+    ]
 
 
 def test_external_control_cannot_clear_fixed_prey_into_discovery(
@@ -315,18 +331,14 @@ def test_external_control_cannot_clear_fixed_prey_into_discovery(
     control = tmp_path / "control"
     (control / ".crab").mkdir(parents=True)
     (control / ".crab" / "maws.yml").write_text(
-        yaml.safe_dump(
-            {"maws": [{"repo": "example/maw", "path": "../maw", "prey": []}]}
-        ),
+        yaml.safe_dump({"maws": [{"repo": "example/maw", "path": "../maw", "prey": []}]}),
         encoding="utf-8",
     )
     with pytest.raises(UsageError, match="cannot clear owner prey"):
         Loop(loop.maw, control, provider=loop.provider, now=NOW)
 
 
-def test_owner_discovery_only_mode_accepts_empty_control_prey(
-    loop: Loop, tmp_path: Path
-) -> None:
+def test_owner_discovery_only_mode_accepts_empty_control_prey(loop: Loop, tmp_path: Path) -> None:
     config = yaml.safe_load(loop.config.path.read_text(encoding="utf-8"))
     config["loop"]["discovery"] = True
     config["loop"]["prey"] = []
@@ -334,9 +346,7 @@ def test_owner_discovery_only_mode_accepts_empty_control_prey(
     control = tmp_path / "control"
     (control / ".crab").mkdir(parents=True)
     (control / ".crab" / "maws.yml").write_text(
-        yaml.safe_dump(
-            {"maws": [{"repo": "example/maw", "path": "../maw", "prey": []}]}
-        ),
+        yaml.safe_dump({"maws": [{"repo": "example/maw", "path": "../maw", "prey": []}]}),
         encoding="utf-8",
     )
     checked = Loop(loop.maw, control, provider=loop.provider, now=NOW)

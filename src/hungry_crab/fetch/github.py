@@ -18,7 +18,6 @@ from typing import Any, cast
 
 from ..cache import Slug
 from ..errors import ExternalCommandError
-
 from .bounded import (
     MAX_JSON_BYTES,
     MAX_STDERR_BYTES,

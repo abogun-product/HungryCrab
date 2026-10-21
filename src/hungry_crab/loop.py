@@ -10,6 +10,7 @@ import contextlib
 import hashlib
 import json
 import os
+import re
 import sys
 import uuid
 from collections.abc import Callable, Iterator
@@ -126,6 +127,20 @@ def ci_state(artifact: dict[str, Any]) -> str:
         if all(value in {"success", "neutral", "skipped"} for value in conclusions)
         else "pending"
     )
+
+
+def merge_ci_state(artifact: dict[str, Any]) -> str:
+    """Only provider checks bound to the actual merge commit can certify a landing."""
+    sha = artifact.get("merge_commit_sha")
+    evidence = artifact.get("merge_ci")
+    if (
+        not isinstance(sha, str)
+        or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", sha)
+        or not isinstance(evidence, dict)
+        or evidence.get("sha") != sha
+    ):
+        return "pending"
+    return ci_state(evidence)
 
 
 class Loop:
@@ -453,6 +468,13 @@ class Loop:
                 }
                 return
             if truth.get("merged_at"):
+                status = merge_ci_state(truth)
+                if status == "fail":
+                    data["waiting_on"] = {"kind": "human", "reason": "Merge commit CI failed"}
+                    return
+                if status != "pass":
+                    pending = True
+                    continue
                 pr["state"] = "merged"
                 pr["merge_sha"] = truth["merge_commit_sha"]
             elif truth.get("state") == "closed":

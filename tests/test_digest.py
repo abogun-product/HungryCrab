@@ -344,3 +344,25 @@ def test_manifest_is_valid_json_on_disk(npm_digest: DigestResult) -> None:
     on_disk = json.loads(npm_digest.manifest_path.read_text(encoding="utf-8"))
     assert on_disk["schema"] == SCHEMA
     assert on_disk["files"] == npm_digest.manifest["files"]
+
+
+@pytest.mark.parametrize("name", ["architecture.md", "ARCHITECTURE.md"])
+def test_orphan_manifest_entry_never_grants_output_ownership(
+    npm_app: Path, tmp_path: Path, name: str
+) -> None:
+    out = tmp_path / "out"
+    run_digest(Target(path=npm_app), DigestOptions(out=out, now=FIXED_NOW, miners=["license"]))
+    caller = out / name
+    original = b"# Caller architecture\n"
+    caller.write_bytes(original)
+    path = out / "manifest.json"
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest["files"].append(
+        {"name": "architecture.md", "miner": "architecture", "bytes": len(original)}
+    )
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    before = {p.name: p.read_bytes() for p in out.iterdir()}
+    with pytest.raises(CrabError, match="caller-owned"):
+        run_digest(Target(path=npm_app), DigestOptions(out=out, now=FIXED_NOW, force=True))
+    assert {p.name: p.read_bytes() for p in out.iterdir()} == before
+    assert caller.read_bytes() == original
