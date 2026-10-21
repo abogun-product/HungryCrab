@@ -7,10 +7,19 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Everything below is on `master` and in no tag. The 0.2.1 and 0.2.2 milestones are complete —
-self-feeding, the licence resolutions, the menu benchmark — but neither was ever released, so
-their entries wait here for the next tag rather than claiming one of their own. Milestones are
-tracked in [docs/design/03-roadmap.md](docs/design/03-roadmap.md); this file tracks releases.
+## [0.6.0] - 2026-10-21
+
+Everywhere is a limited stable release of deterministic, human-supervised repository
+analysis: the CLI, scoped stdio MCP, portable skills and offline HTML reports. On
+2026-10-21 the owner explicitly deferred the original live milestone acceptance
+criteria to post-release work. Earlier 0.3-0.5 implementations are included, but PR
+publication, Scheduled Crab work autonomy and learning/usefulness claims remain
+experimental. No three-fleet-PR, licence-corpus, B2 cost advantage, held-out uptake or
+longitudinal autonomy result is claimed. Issues #224, #236, #242, #243, #250 and #256
+remain open; see [release scope and follow-up](docs/releases/0.6.0-readiness.md).
+
+The earlier 0.2.1 and 0.2.2 milestones were never tagged separately; their changes are
+included here with the unreleased implementation work accumulated since 0.2.0.
 
 ### Added
 
@@ -718,5 +727,6 @@ ledger, the Agent Skills and the Claude Code plugin).
 - CI on Ubuntu and Windows with Python 3.11 and 3.14: ruff, mypy, pytest and a self-digest
   smoke test.
 
-[Unreleased]: https://github.com/drevendev/HungryCrab/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/drevendev/HungryCrab/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/drevendev/HungryCrab/compare/v0.2.0...v0.6.0
 [0.2.0]: https://github.com/drevendev/HungryCrab/releases/tag/v0.2.0

@@ -38,13 +38,12 @@ trace footer. Say no to one and the crab remembers, so it never offers it again.
 The prey is never executed. Not one line of its text reaches your issues unless the license says
 it may.
 
-**Status: [0.2.0 Menu](https://github.com/drevendev/HungryCrab/releases/latest) remains the
-latest release. The integrated development candidate is 0.6.0.dev0, Everywhere.** It adds local
-MCP digest/menu tools, an optional install extra and standalone offline HTML reports on top of
-the unreleased Feeder, Scheduled Crab, Deep Bite and Taste Memory implementations. Release and
-live usefulness evidence remain separate. Start with the [Everywhere guide](docs/everywhere.md)
-for installation, host configuration and reports; see the [roadmap](docs/design/03-roadmap.md)
-for the remaining release gates.
+**Status: 0.6.0 Everywhere is the limited stable analysis release.** The supported
+scope is deterministic, human-supervised CLI analysis, scoped local MCP, portable skills
+and offline HTML reports. PR publication, Scheduled Crab work autonomy and measured
+learning/usefulness remain experimental. Their original live acceptance criteria are
+explicitly deferred to post-release work, not declared complete. Start with the
+[Everywhere guide](docs/everywhere.md) and [release scope](docs/releases/0.6.0-readiness.md).
 
 ## The metaphor, in five words
 
@@ -64,23 +63,24 @@ Prerequisites: Python 3.11+, `git`, and `gh` authenticated for the GitHub API.
 **The CLI**, which every agent then calls:
 
 ```bash
-uv tool install "hungry-crab @ git+https://github.com/drevendev/HungryCrab"
+uv tool install "hungry-crab==0.6.0"
 ```
 
 Optional native syntax analysis uses `hungry-crab[deep]` on the same source or version:
 
 ```bash
-uv tool install "hungry-crab[deep] @ git+https://github.com/drevendev/HungryCrab"
+uv tool install "hungry-crab[deep]==0.6.0"
 ```
 
 The base installation keeps PyYAML as its only runtime dependency. GitLab.com public reads do
 not require `gh`; private reads use `GITLAB_TOKEN`. GitHub Discussions and JUnit artifact reads
 need the corresponding authenticated API permissions.
 
-That tracks `master`, which is always green, and is the recommended way to install the crab
-while it is pre-1.0. If you want a fixed version instead, append `@v0.2.0` to the URL — that is
-the only tag so far, and it predates the licence resolutions and the menu benchmark — and take
-care of updates yourself.
+For a pinned Git-based installation, use
+`uv tool install "hungry-crab @ git+https://github.com/drevendev/HungryCrab@v0.6.0"`.
+Source installations without a tag follow development on `master`. Package-index
+installation requires the published 0.6.0 distributions; an unmerged release PR is
+not a publication. See the release link above for the actual available tag.
 
 **Claude Code**, which adds the eat/license/serve/cleanroom/loop skills, sniff/menu commands,
 three subagents and two `PreToolUse` hooks:

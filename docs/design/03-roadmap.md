@@ -20,14 +20,34 @@ Track C · Forks                                        F0 ─ F1 ─ F2
 | 0.2.2 | Menu benchmark | B1 from [06-benchmark.md](06-benchmark.md): frozen maw and prey, the golden set, the deterministic menu benchmark and its CI gate | **milestone done, not released.** `recall_must@30` = 1.00 (10/10) and `noise@30` = 0.66 (19/29) on master, both gating pull requests through the test suite |
 | 0.3 | Serve | PR branches, trace, attribution, clean room, safety hook, docs; the license resolutions and the `trust` relationship; the budget policy and paged documents ([08-budgets-and-feeder.md](08-budgets-and-feeder.md)); coverage measured and gated | ≥ 3 merged PRs in the fleet; **MVP closed** |
 | 0.3.1 | Feeder | Independent wiki snapshots and enforced strict mode; the deterministic pipeline as a reusable GitHub workflow and a composite action: a maw names its prey, the job runs `catch → digest → compare` with no model anywhere, and uploads the meal as a build artifact. Rate limits, retries and conditional requests, because a runner has no `gh auth`; `--shallow --since` by default. Brought forward from 0.6 ([08-budgets-and-feeder.md](08-budgets-and-feeder.md)) | a repository with no agent installed gets a menu artifact on a schedule; the Evolving Crab's CONSUME phase is this job |
-| 0.3.2 | Scheduled crab | `crab loop`: persisted phases, leases, budgets, retries, control repositories, guarded publication and `/crab:loop` ([operator guide](../scheduled-crab.md), [design](07-scheduled-crab.md)) | Implementation has deterministic tests; live exit evidence remains open in [#242](https://github.com/drevendev/HungryCrab/issues/242): ten scheduled wake-ups, a second maw round, a verified MOLT and a human-merged release/tag with measured phase costs. Not released. |
-| 0.4 | Deep Bite | Discussions (GraphQL), PR reviews, CI durations and explicit flaky-rerun report evidence; optional tree-sitter symbols and a conservative lexical call graph; the first `code` producer; eight dependency ecosystems and GitLab.com acquisition; B1 ranking pressure and the B2 experiment pipeline ([guide](../deep-bite.md)) | Implementation covers eight ecosystems and architectural nutrients with symbol-level evidence. Unreleased; the first live B2 sweep is [#250](https://github.com/drevendev/HungryCrab/issues/250). |
+| 0.3.2 | Scheduled crab | `crab loop`: persisted phases, leases, budgets, retries, control repositories, guarded publication and `/crab:loop` ([operator guide](../scheduled-crab.md), [design](07-scheduled-crab.md)) | Implementation has deterministic tests; live exit evidence remains open in [#242](https://github.com/drevendev/HungryCrab/issues/242): ten scheduled wake-ups, a second maw round, a verified MOLT and a human-merged release/tag with measured phase costs. Operational milestone remains unvalidated. |
+| 0.4 | Deep Bite | Discussions (GraphQL), PR reviews, CI durations and explicit flaky-rerun report evidence; optional tree-sitter symbols and a conservative lexical call graph; the first `code` producer; eight dependency ecosystems and GitLab.com acquisition; B1 ranking pressure and the B2 experiment pipeline ([guide](../deep-bite.md)) | Experimental implementation covers eight ecosystems and architectural nutrients with symbol-level evidence; the live milestone remains open: the first live B2 sweep is [#250](https://github.com/drevendev/HungryCrab/issues/250). |
 | 0.5 | Taste Memory | scorer learning from the ledger (accepted/rejected by category and maw), `crab hunt --for .` (finding prey for a maw via `gh search` + similarity signals), multi-prey (`eat a b c` → merged menu), hunger profiles by repository type | share of accepted issues grows between iterations on the same maw |
-| 0.6 | Everywhere | MCP server (`crab_digest`, `crab_menu`), PyPI package, `npx skills add`, docs for Codex/Cursor, `crab report` (HTML report of a digest) | Implementation candidate: local stdio, package install checks and HTML reports. Windows/Linux protocol/install evidence is recorded in its PR; GUI host meals, PyPI publication and earlier release gates remain separate. See [Everywhere](../everywhere.md). |
+| 0.6 | Everywhere | MCP server (`crab_digest`, `crab_menu`), PyPI package, `npx skills add`, docs for Codex/Cursor, `crab report` (HTML report of a digest) | Limited stable analysis scope: local stdio, portable skills, package installation and HTML. Windows/Linux protocol/install checks are gated; host GUI meals and earlier live criteria remain post-release work by explicit owner decision. See [Everywhere](../everywhere.md). |
 | 1.0 | Stable | stable schemas (`nutrient`, `manifest`, `.crab.yml`), semver guarantees, ledger migrations, a set of 50 license test repositories, public benchmarks | schemas frozen, changelog and release automation — on the crab itself |
 
-Released: **0.2.0**, the only tag so far. Milestones complete: **0.2.1** and **0.2.2**, both on
-`master` and in no tag. Development candidate: **0.6 Everywhere**; 0.3 release evidence remains open.
+Released: **0.6.0 Everywhere**, a limited stable analysis release. The 0.2.1-0.5
+implementations are included; this does not close their unfulfilled milestone exit criteria.
+The stable release commit and actual publication follow [CONTRIBUTING](../../CONTRIBUTING.md#releasing).
+
+### Owner-approved 0.6 scope and post-release order (2026-10-21)
+
+The owner explicitly approved a limited CLI/MCP/portable-skills/HTML release and asked
+for the remaining checks and repairs immediately afterward. This prospectively defers
+#224's outstanding fleet/licence-corpus/live B2 acceptance, #236's hard quotas,
+#242's longitudinal rounds, #243's host boundary and #256's held-out uptake criteria;
+all remain open. The older milestones are not retroactively declared complete. Stable
+support covers deterministic, human-supervised analysis. Publication, work autonomy and
+learning/usefulness guarantees remain experimental pending their respective evidence.
+
+Begin post-release with the available authenticated Codex harness, frozen inputs,
+actual model identity and measured usage. Do not fabricate monetary prices or claim
+that one available model measures another. Retain the B2 baseline, independent human
+audit and held-out owner decisions before asserting efficacy or cost superiority.
+Then fix acquisition/host enforcement before wider S2 operation, and collect real
+S0/S1 wake-ups, recovery and human-merge evidence. No scheduler is enabled by this decision.
+See [the release record](../releases/0.6.0-readiness.md). The recovery audit below is a
+historical snapshot of the earlier master/candidate split, not current release status.
 
 ### Project state and integration order (2026-10-21)
 
@@ -68,23 +88,16 @@ verified on Windows/Linux; host-specific connection recipes and portable skills 
 [operator guide](../everywhere.md). This is not a published 0.6 release, an assertion that every
 GUI host ran a meal, a PyPI upload, or a waiver of #224/#236/#242/#243/#250/#256.
 
-### Next delivery priorities
+### Post-release delivery priorities
 
-1. **Land one verified integration.** Keep the current master fixes, resolve shared contracts,
-   pass Linux/Windows CI on the selected final head, and retain distinct release/live gates.
-2. **Prove a useful first meal.** Follow [First Feast](../FIRST_FEAST.md) / [#281](https://github.com/drevendev/HungryCrab/issues/281):
-   finish the executed fixture walkthrough, audit supported and NO_GAP cards, and obtain three
-   independently accepted improvements. Record reviewer time, false positives and time to first
-   useful result. Establish the frozen 0.4 B2 baseline before comparing learned 0.5 weights.
-3. **Complete the release gate.** Resolve #224's licence corpus, fleet evidence and release
-   checks. Run the paid B2 experiment only with explicit budget authorization. Neither this
-   audit nor integration publishes a tag or enables unattended work.
-4. **Build 0.6 Everywhere around the first useful result.** The next capability milestone with
-   the strongest expected product impact is a small read-first MCP interface (`crab_digest`,
-   `crab_menu`), straightforward distribution and an inspectable report. Reuse the deterministic
-   CLI and its policy; keep publication explicit. Acceptance should include a clean install and
-   a reproducible useful meal in each supported harness. Add host enforcement (#243) and hard
-   quotas (#236) before expanding work autonomy.
+1. Run a reproducible first meal through the available Codex harness; preserve exact
+   inputs, actual usage, unsupported/NO_GAP cases and independently reviewed outcomes.
+2. Complete the 30-repository licence corpus and useful human-merged fleet evidence
+   (#224), the frozen B2 baseline/audit (#250), then held-out Taste Memory uptake (#256).
+3. Enforce main/wiki acquisition quotas (#236) and host tool boundaries (#243) before
+   wider work autonomy. Collect the genuine S0/S1 longitudinal evidence in #242.
+4. Verify complete meals in supported GUI hosts; keep installation/stdio protocol
+   results distinct from a human's completed host workflow.
 
 The bottleneck is now integration and demonstrated recommendation quality, rather than a
 missing miner. The original human B1 corpus still reports recall 10/10 and noise 19/29;
