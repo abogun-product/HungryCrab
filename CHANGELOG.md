@@ -258,6 +258,9 @@ tracked in [docs/design/03-roadmap.md](docs/design/03-roadmap.md); this file tra
 
 ### Fixed
 
+- Refuse case-variant caller files during selective digest stale cleanup before replacing
+  any artifact; keep caller bytes and the previous manifest intact on Windows and Linux.
+
 - **Integration safety:** multi-prey source routing preserves the owner's original selection,
   so `--top` cannot bypass `serve.prs: ask` or an ideas-only hunger ceiling. Scheduled landings
   and release tagging require CI bound to the provider-confirmed merge commit, including squash

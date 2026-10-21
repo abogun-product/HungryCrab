@@ -409,19 +409,26 @@ def _publish_explicit_output(staged: Path, destination: Path) -> None:
             )
 
     stale_names = previous_owned - staged_names - {MANIFEST_NAME}
-    for name in stale_names:
-        stale = destination / name
-        if stale.exists() and (stale.is_symlink() or not stale.is_file()):
+    stale_paths: list[Path] = []
+    for name in sorted(stale_names):
+        stale = existing_by_fold.get(name.casefold())
+        if stale is None:
+            continue
+        if stale.name != name:
+            raise CrabError(
+                f"refusing to remove caller-owned file {stale.name!r} in {destination}",
+                hint="remove/rename the conflicting caller file or use an empty --out directory",
+            )
+        if stale.is_symlink() or not stale.is_file():
             raise CrabError(
                 f"refusing to remove non-file stale digest artifact {name!r} in {destination}"
             )
+        stale_paths.append(stale)
 
     for name in sorted(staged_names - {MANIFEST_NAME}):
         (staged / name).replace(destination / name)
-    for name in sorted(stale_names):
-        stale = destination / name
-        if stale.is_file():
-            stale.unlink()
+    for stale in stale_paths:
+        stale.unlink()
     (staged / MANIFEST_NAME).replace(destination / MANIFEST_NAME)
 
 

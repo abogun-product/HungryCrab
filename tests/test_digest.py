@@ -366,3 +366,42 @@ def test_orphan_manifest_entry_never_grants_output_ownership(
         run_digest(Target(path=npm_app), DigestOptions(out=out, now=FIXED_NOW, force=True))
     assert {p.name: p.read_bytes() for p in out.iterdir()} == before
     assert caller.read_bytes() == original
+
+
+def test_explicit_output_rerun_refuses_case_variant_stale_artifact(
+    npm_app: Path, tmp_path: Path
+) -> None:
+    out = tmp_path / "out"
+    run_digest(Target(path=npm_app), DigestOptions(out=out, now=FIXED_NOW))
+    (out / "history.md").unlink()
+    caller = out / "HISTORY.md"
+    caller.write_bytes(b"# Human history\n")
+    before = {path.name: path.read_bytes() for path in out.iterdir()}
+
+    with pytest.raises(CrabError, match=r"caller-owned file 'HISTORY\.md'"):
+        run_digest(
+            Target(path=npm_app),
+            DigestOptions(out=out, now=FIXED_NOW, miners=["license"], force=True),
+        )
+
+    assert {path.name: path.read_bytes() for path in out.iterdir()} == before
+    assert caller.read_bytes() == b"# Human history\n"
+    assert not list(tmp_path.glob(".out.crab-*"))
+
+
+def test_in_tree_output_does_not_expose_staging_to_inventory(tmp_path: Path) -> None:
+    root = write_tree(tmp_path / "prey", {"app.py": "VALUE = 1\n", "README.md": "# App\n"})
+    baseline = run_digest(
+        Target(path=root),
+        DigestOptions(out=tmp_path / "outside", now=FIXED_NOW, miners=["inventory"]),
+    )
+    nested = run_digest(
+        Target(path=root),
+        DigestOptions(out=root / "new-parent" / "report", now=FIXED_NOW, miners=["inventory"]),
+    )
+
+    assert (
+        read_json(nested, "inventory.json")["top_level"]
+        == read_json(baseline, "inventory.json")["top_level"]
+    )
+    assert not list(root.rglob("*.crab-*"))

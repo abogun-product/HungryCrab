@@ -284,3 +284,43 @@ def test_invalid_since_does_not_create_cache_directory(tmp_path: Path) -> None:
             now=NOW,
         )
     assert not prey_paths(slug, root).root.exists()
+
+
+def test_default_switch_preserves_date_bound_on_diverged_history(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    fixture_git(source, "init", "-b", "main")
+    (source / "README.md").write_text("# Old root\n", encoding="utf-8")
+    fixture_git(source, "add", ".")
+    fixture_git(source, "commit", "-m", "feat: old root", date="2020-01-01T12:00:00Z")
+    old_sha = fixture_git(source, "rev-parse", "HEAD").strip()
+    (source / "main.py").write_text("MAIN = True\n", encoding="utf-8")
+    fixture_git(source, "add", ".")
+    fixture_git(source, "commit", "-m", "feat: main tip", date="2026-10-01T12:00:00Z")
+    remote = tmp_path / "remote.git"
+    fixture_git(tmp_path, "clone", "--bare", str(source), str(remote))
+    options = CatchOptions(shallow=True, since="90d")
+    slug = Slug("example", "diverged-default")
+    now = datetime(2026, 10, 7, tzinfo=UTC)
+    first = catch(slug, options, cache_root=tmp_path / "cache", source_url=remote.as_uri(), now=now)
+    assert fixture_git(Path(first.repo_dir), "rev-list", "--count", "HEAD").strip() == "1"
+
+    fixture_git(source, "checkout", "-b", "next", old_sha)
+    (source / "next.py").write_text("NEXT = True\n", encoding="utf-8")
+    fixture_git(source, "add", ".")
+    fixture_git(source, "commit", "-m", "feat: diverged tip", date="2026-10-02T12:00:00Z")
+    expected = fixture_git(source, "rev-parse", "HEAD").strip()
+    fixture_git(source, "push", str(remote), "next")
+    fixture_git(remote, "symbolic-ref", "HEAD", "refs/heads/next")
+    fixture_git(remote, "update-ref", "-d", "refs/heads/main")
+
+    second = catch(
+        slug, options, cache_root=tmp_path / "cache", source_url=remote.as_uri(), now=now
+    )
+    assert second.sha == expected
+    assert second.default_branch == "next"
+    assert second.history_window_applied is True
+    assert fixture_git(Path(second.repo_dir), "rev-list", "--count", "HEAD").strip() == "1"
+    assert fixture_git(Path(second.repo_dir), "log", "--format=%cs", "HEAD").splitlines() == [
+        "2026-10-02"
+    ]
