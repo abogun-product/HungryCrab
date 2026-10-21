@@ -25,7 +25,9 @@ def verify_sdist(archive: Path) -> None:
     missing = required - relative
     if missing:
         raise ValueError(f"sdist lacks required files: {sorted(missing)}")
-    unexpected_tests = sorted(name for name in relative if name == "tests" or name.startswith("tests/"))
+    unexpected_tests = sorted(
+        name for name in relative if name == "tests" or name.startswith("tests/")
+    )
     if unexpected_tests:
         raise ValueError(
             f"sdist ships tests without their repository fixtures: {unexpected_tests[:5]}"
@@ -35,7 +37,10 @@ def verify_sdist(archive: Path) -> None:
 def main() -> int:
     archives = sorted(Path("dist").glob("hungry_crab-*.tar.gz"))
     if len(archives) != 1:
-        print(f"expected exactly one HungryCrab sdist in dist/, got {len(archives)}", file=sys.stderr)
+        print(
+            f"expected exactly one HungryCrab sdist in dist/, got {len(archives)}",
+            file=sys.stderr,
+        )
         return 1
     try:
         verify_sdist(archives[0])
