@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import io
+import runpy
 import tarfile
 from pathlib import Path
 
 import pytest
 import yaml
 
-from scripts.check_sdist import verify_sdist
-
 ROOT = Path(__file__).resolve().parents[1]
+verify_sdist = runpy.run_path(str(ROOT / "scripts" / "check_sdist.py"))["verify_sdist"]
 REQUIRED = ("pyproject.toml", "README.md", "LICENSE", "src/hungry_crab/__init__.py")
 
 
@@ -38,7 +38,7 @@ def test_source_archive_rejects_uncollectable_tests(tmp_path: Path) -> None:
 
 def test_source_archive_rejects_missing_runtime_files(tmp_path: Path) -> None:
     archive = _archive(tmp_path, "README.md", "LICENSE", "pyproject.toml")
-    with pytest.raises(ValueError, match="src/hungry_crab/__init__.py"):
+    with pytest.raises(ValueError, match=r"src/hungry_crab/__init__\.py"):
         verify_sdist(archive)
 
 
