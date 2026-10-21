@@ -16,9 +16,19 @@ uv run ruff check .
 uv run ruff format --check .
 uv run mypy
 uv run pytest
+uv run crab digest . --maw . --out digest-out --maw-license MIT --fail-on-miner-error
+uv build --sdist
+uv run python scripts/check_sdist.py
 ```
 
+These checks cover the repository's regular CI and the source-distribution content gate;
+the exact self-digest output remains local. A build may download trusted build dependencies.
+The published sdist intentionally omits repository tests because those tests require plugin,
+hook and benchmark fixture files from the complete checkout.
+
 Optional: `uv tool install pre-commit` and `pre-commit install` to run the hooks on every commit.
+The Ruff hooks use `uv run --locked`, so pre-commit and CI run the same dependency
+version from `uv.lock` rather than independent version pins.
 
 ## Conventions
 

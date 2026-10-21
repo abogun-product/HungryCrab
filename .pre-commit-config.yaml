@@ -12,9 +12,18 @@ repos:
       - id: trailing-whitespace
         exclude: ^tests/fixtures/
         args: [--markdown-linebreak-ext=md]
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.6
+  # Use the exact Ruff resolved by uv.lock, avoiding a second drifting tool pin.
+  - repo: local
     hooks:
       - id: ruff-check
-        args: [--fix]
+        name: Ruff check (uv.lock)
+        entry: uv run --locked ruff check --fix --force-exclude
+        language: system
+        types_or: [python, pyi]
+        exclude: ^tests/fixtures/
       - id: ruff-format
+        name: Ruff format (uv.lock)
+        entry: uv run --locked ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
+        exclude: ^tests/fixtures/
