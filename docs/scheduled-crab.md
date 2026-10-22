@@ -122,7 +122,10 @@ crab loop tag --token TOKEN
 ```
 
 Each effect rechecks open-artifact caps. GROW publishes one served nutrient per round, retaining
-license, hunger, attribution, clean-room and secret gates. MOLT/HARDEN require an immutable
+license, hunger, attribution, clean-room and secret gates. The id the loop serves is the loop's
+pick, never the owner's selection: it does not lift `serve.prs: ask` (GROW opens a PR only when
+`.crab.yml` says `serve.prs: auto`), an `ideas-only` hunger, a `serve_as: idea` card or a licence
+verdict that asks for human review. Those still need a person naming the id with `crab serve`. MOLT/HARDEN require an immutable
 local commit containing the current default branch and exact declared paths. They scan the full
 payload before effects, use deterministic branches/markers, reconcile PRs, and refuse symlinks,
 submodules, type changes, protected paths, ambiguous push targets and unexpected existing content.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -110,6 +111,9 @@ def test_served_issue_becomes_one_licensed_grow_pr_and_protected_payload_is_bloc
     monkeypatch.setattr(
         "hungry_crab.serve.publish_prepared_cleanroom_git_pull_request", publish_stub
     )
+    # The loop's own pick is never owner selection, so GROW publishes only for an owner who
+    # set `serve.prs: auto`; the fixture's .crab.yml keeps the default `ask`.
+    loop.config = replace(loop.config, serve=replace(loop.config.serve, prs="auto"))
     ready = loop.next()
     if protected:
         before = loop.path.read_bytes()
@@ -139,3 +143,46 @@ def test_served_issue_becomes_one_licensed_grow_pr_and_protected_payload_is_bloc
     )
     ready = loop.next()
     assert ready["ready"] and ready["phase"] == "taste"
+
+
+def _serve_round(loop: Loop, tmp_path: Path, card: Candidate) -> str:
+    meal = tmp_path / "meal"
+    meal.mkdir()
+    card.trace = {"prey": "example/prey", "sha": "b" * 40}
+    atomic_json(
+        meal / "menu.json", {"prey": {"label": "example/prey"}, "candidates": [card.to_dict()]}
+    )
+    atomic_json(meal / "notes.json", {card.id: {"why": "Catch regressions", "how": "Use fixtures"}})
+    force_phase(
+        loop,
+        "serve",
+        meals=[
+            {
+                "prey": "example/prey",
+                "meal": str(meal / "meal.json"),
+                "notes": str(meal / "notes.json"),
+            }
+        ],
+    )
+    return str(loop.next()["active"]["token"])
+
+
+def test_the_loop_pick_does_not_serve_an_idea_card(
+    loop: Loop, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An id the unattended loop chose is not the owner naming it by hand."""
+    client = FakeIssues()
+    monkeypatch.setattr("hungry_crab.loop_work.GhIssueClient", lambda **_: client)
+    card = Candidate(
+        "tests",
+        "tests.unit",
+        "Add isolated tests",
+        "Test isolation",
+        serve_as="idea",
+        license_mode="REIMPLEMENT",
+        origin="licensed",
+    )
+    token = _serve_round(loop, tmp_path, card)
+    with pytest.raises(CrabError, match="no artifact"):
+        serve_phase(loop, token, "example/prey", card.id)
+    assert client.created == []
