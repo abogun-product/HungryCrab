@@ -324,3 +324,108 @@ def test_default_switch_preserves_date_bound_on_diverged_history(tmp_path: Path)
     assert fixture_git(Path(second.repo_dir), "log", "--format=%cs", "HEAD").splitlines() == [
         "2026-10-02"
     ]
+
+
+class _AnonymousGitHub(_FakeGitHub):
+    token: str | None = None
+
+
+def test_a_failed_wiki_probe_never_fails_the_catch(
+    npm_app: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without credentials GitHub answers a probe for a missing wiki with a login prompt."""
+    slug = Slug("example", "no-wiki")
+    cache = tmp_path / "cache"
+    monkeypatch.setattr(Slug, "clone_url", property(lambda _: str(npm_app)))
+
+    def prompt(*_: object, **__: object) -> dict[str, object]:
+        raise ExternalCommandError(
+            "fatal: could not read Username for 'https://github.com': terminal prompts disabled"
+        )
+
+    monkeypatch.setattr("hungry_crab.fetch.catch.catch_wiki", prompt)
+    client = _AnonymousGitHub()
+    result = catch(slug, cache_root=cache, github=client)  # type: ignore[arg-type]
+    assert result.wiki is not None and result.wiki["status"] == "unavailable"
+    assert "could not read Username" in str(result.wiki["reason"])
+    recorded = json.loads(prey_paths(slug, cache).catch_file.read_text(encoding="utf-8"))
+    assert recorded["wiki"]["status"] == "unavailable"
+    marker = prey_paths(slug, cache).repo / ".git" / "crab-test-marker"
+    marker.write_text("same clone", encoding="utf-8")
+    again = catch(slug, cache_root=cache, github=client)  # type: ignore[arg-type]
+    assert again.updated and marker.is_file(), "the next catch refreshes the recorded clone"
+
+
+def test_an_explicit_wiki_source_still_fails_loudly(
+    npm_app: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(*_: object, **__: object) -> dict[str, object]:
+        raise ExternalCommandError("fatal: unable to access the wiki")
+
+    monkeypatch.setattr("hungry_crab.fetch.catch.catch_wiki", broken)
+    with pytest.raises(ExternalCommandError):
+        catch(
+            Slug("example", "wiki-source"),
+            cache_root=tmp_path / "cache",
+            source_url=str(npm_app),
+            wiki_source_url=str(tmp_path / "wiki"),
+        )
+
+
+def test_a_relative_since_refreshes_on_the_next_day(npm_app: Path, tmp_path: Path) -> None:
+    """`--since 90d` names a new date every day; the clone must not be replaced daily."""
+    slug = Slug("example", "daily")
+    cache = tmp_path / "cache"
+    options = CatchOptions(since="20y")
+    url = npm_app.as_uri()
+    catch(slug, options, cache_root=cache, source_url=url, now=datetime(2026, 10, 2, tzinfo=UTC))
+    marker = prey_paths(slug, cache).repo / ".git" / "crab-test-marker"
+    marker.write_text("same clone", encoding="utf-8")
+    second = catch(
+        slug, options, cache_root=cache, source_url=url, now=datetime(2026, 10, 3, tzinfo=UTC)
+    )
+    assert second.updated and marker.is_file()
+    recorded = json.loads(prey_paths(slug, cache).catch_file.read_text(encoding="utf-8"))
+    assert recorded["clone_policy"] == {"shallow": False, "since": "20y"}
+
+
+def test_a_clone_without_a_policy_record_is_refreshed_not_replaced(
+    npm_app: Path, tmp_path: Path
+) -> None:
+    slug = Slug("example", "legacy")
+    cache = tmp_path / "cache"
+    catch(slug, cache_root=cache, source_url=str(npm_app))
+    paths = prey_paths(slug, cache)
+    record = json.loads(paths.catch_file.read_text(encoding="utf-8"))
+    del record["clone_policy"]  # a cache written before the policy was recorded
+    paths.catch_file.write_text(json.dumps(record), encoding="utf-8")
+    marker = paths.repo / ".git" / "crab-test-marker"
+    marker.write_text("same clone", encoding="utf-8")
+    assert catch(slug, cache_root=cache, source_url=str(npm_app)).updated
+    paths.catch_file.unlink()  # a catch that failed after cloning left no record at all
+    assert catch(slug, cache_root=cache, source_url=str(npm_app)).updated
+    assert marker.is_file()
+
+
+def test_channels_only_keeps_the_cached_commit(npm_app: Path, tmp_path: Path) -> None:
+    upstream = tmp_path / "upstream"
+    fixture_git(tmp_path, "clone", "--quiet", str(npm_app), str(upstream))
+    slug = Slug("example", "pinned")
+    cache = tmp_path / "cache"
+    first = catch(slug, cache_root=cache, source_url=str(upstream))
+    (upstream / "later.txt").write_text("upstream moved on\n", encoding="utf-8")
+    fixture_git(upstream, "add", "later.txt")
+    fixture_git(upstream, "commit", "--quiet", "-m", "later")
+    sampled = catch(
+        slug,
+        CatchOptions(issues=2),
+        cache_root=cache,
+        source_url=str(upstream),
+        github=_FakeGitHub(),  # type: ignore[arg-type]
+        channels_only=True,
+    )
+    assert sampled.sha == first.sha and not sampled.updated
+    assert sampled.issues_fetched == 2
+    recorded = json.loads(prey_paths(slug, cache).catch_file.read_text(encoding="utf-8"))
+    assert recorded["clone_policy"] == {"shallow": False, "since": None}
+    assert catch(slug, cache_root=cache, source_url=str(upstream)).sha != first.sha

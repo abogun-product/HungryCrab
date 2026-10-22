@@ -178,7 +178,8 @@ def prepare_context(
     ignore = list(options.ignore)
     if target.slug is not None:
         paths = prey_paths(target.slug, options.cache_root)
-        if not (paths.repo / ".git").exists() or any(
+        caught = (paths.repo / ".git").exists()
+        if not caught or any(
             (
                 options.catch_options.issues,
                 options.catch_options.discussions,
@@ -187,12 +188,15 @@ def prepare_context(
             )
         ):
             log(f"acquiring {target.slug} and its requested provider samples")
+            # A cached prey keeps its commit: only the requested samples are fetched, so the
+            # menu and the ledger trace keep naming the commit that was caught.
             catch(
                 target.slug,
                 options.catch_options,
                 cache_root=options.cache_root,
                 log=log,
                 now=options.now,
+                channels_only=caught,
             )
         root = paths.repo
         url = target.slug.url

@@ -156,6 +156,44 @@ def clone_arguments(options: CatchOptions, *, now: datetime | None = None) -> li
     return args
 
 
+def clone_policy(options: CatchOptions) -> dict[str, object]:
+    """What the clone was asked for, as the caller said it.
+
+    The recorded policy decides whether a cached clone can be refreshed or must be replaced.
+    It holds ``--since`` as given, not the date it resolves to: ``90d`` names a new date every
+    day, and comparing resolved dates replaced the whole clone on every daily refresh.
+    """
+    since = options.since.strip().lower() if options.since else None
+    return {"shallow": options.shallow, "since": since}
+
+
+def _fetch_channels(
+    client: RepositoryClient,
+    slug: Slug,
+    opts: CatchOptions,
+    api_dir: Path,
+    log: Callable[[str], None],
+) -> int:
+    """Fetch the requested provider samples into ``api_dir``; return the issue count."""
+    issues_fetched = 0
+    if opts.issues > 0:
+        items = fetch_issues(client, slug, limit=opts.issues, log=log)
+        write_issues(api_dir / "issues.jsonl", items)
+        issues_fetched = len(items)
+    for name in ("discussions", "reviews", "runs"):
+        limit = getattr(opts, name)
+        if limit:
+            data = getattr(channels, name)(client, slug, limit)
+            api_dir.mkdir(parents=True, exist_ok=True)
+            temporary = api_dir / f".{name}-{uuid.uuid4().hex}.tmp"
+            try:
+                temporary.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+                temporary.replace(api_dir / f"{name}.json")
+            finally:
+                temporary.unlink(missing_ok=True)
+    return issues_fetched
+
+
 def catch(
     slug: Slug,
     options: CatchOptions | None = None,
@@ -166,8 +204,14 @@ def catch(
     now: datetime | None = None,
     github: RepositoryClient | None = None,
     wiki_source_url: str | None = None,
+    channels_only: bool = False,
 ) -> CatchResult:
-    """Clone or refresh the prey. ``source_url`` overrides the GitHub URL (used by tests)."""
+    """Clone or refresh the prey. ``source_url`` overrides the GitHub URL (used by tests).
+
+    ``channels_only`` fetches the requested provider samples for a prey that is already caught
+    and leaves its tree at the cached commit: a digest that asks for issues must not move the
+    prey to a newer upstream commit, or replace a shallow cache with a full clone.
+    """
     opts = options or CatchOptions()
     # Validate before changing any cache. A bad date used to delete a valid --force clone.
     clone_args = clone_arguments(opts, now=now)
@@ -192,7 +236,39 @@ def catch(
                 previous = value
         except (OSError, ValueError):
             pass
-    policy_changed = previous.get("clone_policy") != clone_args
+    if channels_only and (repo_dir / ".git").exists() and previous:
+        log(f"fetching provider samples for {slug}; the cached tree stays at its commit")
+        git = GitRunner(repo_dir)
+        issues_fetched = _fetch_channels(client, slug, opts, paths.api, log)
+        recorded_wiki = previous.get("wiki")
+        recorded_window = previous.get("history_window_applied")
+        result = CatchResult(
+            slug=str(slug),
+            url=url,
+            repo_dir=str(repo_dir),
+            sha=git.head_sha(),
+            default_branch=git.default_branch(),
+            shallow=git.is_shallow(),
+            since=str(previous["since"]) if isinstance(previous.get("since"), str) else None,
+            updated=False,
+            caught_at=str(previous.get("caught_at") or ""),
+            issues_fetched=issues_fetched,
+            wiki=dict(recorded_wiki) if isinstance(recorded_wiki, dict) else None,
+            history_window_applied=recorded_window if isinstance(recorded_window, bool) else None,
+        )
+        recorded = {
+            **previous,
+            "issues_fetched": issues_fetched,
+            "channels_at": (now or datetime.now(UTC)).isoformat(timespec="seconds"),
+        }
+        paths.catch_file.write_text(json.dumps(recorded, indent=2) + "\n", encoding="utf-8")
+        return result
+
+    # A clone without a usable record (a cache from before the policy was recorded, or a
+    # catch that failed after cloning) is refreshed, not replaced: replacing it would throw
+    # away a valid tree and download the whole history again.
+    recorded_policy = previous.get("clone_policy")
+    policy_changed = isinstance(recorded_policy, dict) and recorded_policy != clone_policy(opts)
     history_window_applied = True if opts.since else None
     if (repo_dir / ".git").exists() and not opts.force and not policy_changed:
         log(f"refreshing {slug} in {repo_dir}")
@@ -272,31 +348,21 @@ def catch(
 
     wiki_info: dict[str, object] = {"status": "disabled", "sha": None}
     if opts.wiki and (source_url is None or wiki_source_url is not None):
-        wiki_info = catch_wiki(
-            paths.wiki,
-            wiki_source_url or slug.wiki_clone_url,
-            log=log,
-            token=token,
-            auth_host=auth_host,
-        )
+        wiki_url = wiki_source_url or slug.wiki_clone_url
+        try:
+            wiki_info = catch_wiki(paths.wiki, wiki_url, log=log, token=token, auth_host=auth_host)
+        except ExternalCommandError as exc:
+            if wiki_source_url is not None:
+                raise
+            # The wiki is a second repository the prey may not have. Without credentials,
+            # GitHub answers a probe for a missing wiki with an authentication prompt rather
+            # than "not found", so a failed probe is evidence about the wiki, never a reason
+            # to fail the catch of the prey itself.
+            reason = " ".join(exc.message.split())[:200] or "probe failed"
+            log(f"wiki: unavailable ({reason})")
+            wiki_info = {"status": "unavailable", "sha": None, "url": wiki_url, "reason": reason}
 
-    issues_fetched = 0
-    if opts.issues > 0:
-        items = fetch_issues(client, slug, limit=opts.issues, log=log)
-        write_issues(paths.api / "issues.jsonl", items)
-        issues_fetched = len(items)
-
-    for name in ("discussions", "reviews", "runs"):
-        limit = getattr(opts, name)
-        if limit:
-            data = getattr(channels, name)(client, slug, limit)
-            paths.api.mkdir(parents=True, exist_ok=True)
-            temporary = paths.api / f".{name}-{uuid.uuid4().hex}.tmp"
-            try:
-                temporary.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-                temporary.replace(paths.api / f"{name}.json")
-            finally:
-                temporary.unlink(missing_ok=True)
+    issues_fetched = _fetch_channels(client, slug, opts, paths.api, log)
 
     result = CatchResult(
         slug=str(slug),
@@ -312,7 +378,7 @@ def catch(
         wiki=wiki_info,
         history_window_applied=history_window_applied,
     )
-    recorded = {**result.to_dict(), "clone_policy": clone_args}
+    recorded = {**result.to_dict(), "clone_policy": clone_policy(opts)}
     paths.catch_file.write_text(json.dumps(recorded, indent=2) + "\n", encoding="utf-8")
     return result
 
