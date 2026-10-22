@@ -17,7 +17,10 @@ tracked in [docs/design/03-roadmap.md](docs/design/03-roadmap.md); this file tra
 - **0.6 Everywhere (development candidate):** `crab mcp` exposes scoped `crab_digest` and
   paginated `crab_menu` tools over local stdio using the optional official SDK extra. Startup
   roots constrain local access; network reads are opt-in; the adapter neither executes prey,
-  publishes nor mutates the ledger. Modern and legacy protocol clients are tested.
+  publishes nor mutates the ledger. Modern and legacy protocol clients are tested. UNC and
+  device paths are refused before any filesystem call, a path must lie under a root as written
+  before it is resolved, a directory that belongs to a git repository above every root is
+  refused, and `crab mcp --check` works from any directory, the home directory included.
 - **Offline HTML:** `crab report` renders existing digests and single/multi-prey menus as
   self-contained, responsive HTML with coverage, miner health, all retained pages/cards,
   licence modes and pinned evidence. Escaping, safe links, a restrictive content policy,
