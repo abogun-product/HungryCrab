@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import threading
 from pathlib import Path
@@ -14,29 +15,64 @@ from .digest import DigestOptions, incomplete_miners, run_digest
 from .digest_integrity import digest_integrity_errors
 from .errors import CrabError, UsageError
 from .fetch.catch import CatchOptions
+from .fetch.git import GitRunner
 from .nutrients import CATEGORIES
 
 
+def refuse_network_path(value: str) -> None:
+    """Refuse UNC and device paths before any filesystem call.
+
+    On Windows, resolving or even probing ``\\\\host\\share`` opens an SMB or WebDAV
+    connection and offers the user's credentials, before any containment check can run. Tool
+    arguments come from a model that reads prey text, so such a path is never touched.
+    """
+    text = value.strip()
+    if len(text) >= 2 and text[0] in "\\/" and text[1] in "\\/":
+        raise UsageError("network and device paths are not accepted; use a path under a root")
+
+
 class AnalysisService:
-    def __init__(self, roots: list[Path], cache: Path, *, allow_network: bool = False) -> None:
-        if not roots:
-            raise UsageError("MCP needs at least one operator-approved --root")
+    def __init__(
+        self,
+        roots: list[Path],
+        cache: Path,
+        *,
+        allow_network: bool = False,
+        validate: bool = True,
+    ) -> None:
         self.roots = [root.expanduser().resolve() for root in roots]
-        if any(not root.is_dir() for root in self.roots):
-            raise UsageError("every MCP root must be an existing directory")
+        # As the operator wrote them, so a path under a root reached through a link passes the
+        # lexical check that runs before anything is resolved.
+        self.lexical_roots = [
+            Path(os.path.normpath(root.expanduser().absolute())) for root in roots
+        ]
         self.cache = cache.expanduser().resolve()
-        if any(self.cache.is_relative_to(root) for root in self.roots):
-            raise UsageError("MCP cache must be outside the approved source roots")
         self.allow_network = allow_network
         # The CLI cache is shared mutable state; serialize this server's own requests.
         self.lock = threading.Lock()
+        if not validate:
+            # `crab mcp --check` builds the server only to prove the SDK loads; it serves no
+            # request, so it needs no roots and no cache placed outside them.
+            return
+        if not roots:
+            raise UsageError("MCP needs at least one operator-approved --root")
+        if any(not root.is_dir() for root in self.roots):
+            raise UsageError("every MCP root must be an existing directory")
+        if any(self.cache.is_relative_to(root) for root in self.roots):
+            raise UsageError("MCP cache must be outside the approved source roots")
 
     def local(self, value: str) -> Path:
         if not value.strip() or "\x00" in value:
             raise UsageError("a local repository path is required")
+        refuse_network_path(value)
         path = Path(value).expanduser()
         if not path.is_absolute():
             path = self.roots[0] / path
+        # Resolving touches the path (a mapped network drive, a slow mount), so only a path that
+        # already lies under a root as written may be resolved and checked again.
+        lexical = Path(os.path.normpath(path.absolute()))
+        if not any(lexical.is_relative_to(root) for root in [*self.lexical_roots, *self.roots]):
+            raise UsageError("repository is outside the operator-approved MCP roots")
         path = path.resolve()
         if not any(path.is_relative_to(root) for root in self.roots) or path.is_relative_to(
             self.cache
@@ -44,11 +80,31 @@ class AnalysisService:
             raise UsageError("repository is outside the operator-approved MCP roots")
         if not path.is_dir():
             raise UsageError("repository must be an existing local directory")
+        self._refuse_outer_repository(path)
         return path
+
+    def _refuse_outer_repository(self, path: Path) -> None:
+        """Git looks upward for a repository; one above every root is not the operator's grant.
+
+        A plain directory under a root that sits inside a repository outside the roots (a
+        dotfiles repository at the home directory, a monorepo above a vendor drop) would
+        otherwise hand that repository's log, paths and tags to the client.
+        """
+        if not GitRunner.available():
+            return
+        top = GitRunner(path).try_run("rev-parse", "--show-toplevel")
+        if not top or not top.strip():
+            return
+        toplevel = Path(top.strip()).resolve()
+        if not any(toplevel.is_relative_to(root) for root in self.roots):
+            raise UsageError(
+                "this directory belongs to a git repository outside the operator-approved roots"
+            )
 
     def prey(self, value: str) -> Target:
         if not value.strip() or "\x00" in value:
             raise UsageError("prey must not be empty")
+        refuse_network_path(value)
         explicit = value.startswith((".", "/", "\\", "~")) or re.match(r"^[A-Za-z]:", value)
         candidate = Path(value).expanduser()
         if not candidate.is_absolute():

@@ -146,3 +146,65 @@ def test_real_stdio_protocol_tools_schema_errors_and_scoped_digest(
                 assert unknown.is_error
 
     anyio.run(exercise)
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "\\\\attacker.example\\share\\repo",
+        "//attacker.example/share/repo",
+        "\\\\attacker@SSL\\share\\repo",
+        "\\\\?\\UNC\\attacker.example\\share",
+        "\\\\.\\pipe\\crab",
+        "/\\attacker.example\\share",
+    ],
+)
+def test_network_and_device_paths_are_refused_before_any_filesystem_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, target: str
+) -> None:
+    """On Windows, resolving a UNC path opens a connection and offers the user's credentials."""
+    root = tmp_path / "approved"
+    root.mkdir()
+    service = AnalysisService([root], tmp_path / "cache")
+
+    def touched(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("the path reached the filesystem")
+
+    monkeypatch.setattr(Path, "resolve", touched)
+    monkeypatch.setattr(Path, "exists", touched)
+    for call in (service.local, service.prey):
+        with pytest.raises(UsageError, match="network"):
+            call(target)
+
+
+def test_a_directory_inside_an_outer_repository_is_refused(tmp_path: Path) -> None:
+    """Git looks upward: a plain directory under a root must not lend out a parent repository."""
+    from fixture_builder import git as fixture_git
+
+    outer = tmp_path / "outer"
+    root = outer / "vendor-drop"
+    root.mkdir(parents=True)
+    fixture_git(outer, "init", "--quiet")
+    service = AnalysisService([root], tmp_path / "cache")
+    with pytest.raises(UsageError, match="git repository outside"):
+        service.local(str(root))
+    inner = root / "inner"
+    inner.mkdir()
+    fixture_git(inner, "init", "--quiet")
+    assert service.local(str(inner)) == inner.resolve()
+
+
+def test_check_runs_from_a_directory_that_contains_the_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`crab mcp --check` from the home directory, where the default cache lives."""
+    pytest.importorskip("mcp")
+    from hungry_crab.cli import main
+
+    home = tmp_path / "home"
+    cache = home / ".cache" / "hungry-crab"
+    cache.mkdir(parents=True)
+    monkeypatch.chdir(home)
+    monkeypatch.setenv("CRAB_CACHE_DIR", str(cache))
+    assert main(["mcp", "--check"]) == 0
+    AnalysisService([], cache, validate=False)

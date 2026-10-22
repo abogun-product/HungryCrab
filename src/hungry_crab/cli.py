@@ -993,9 +993,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             from .mcp_service import AnalysisService
 
             service = AnalysisService(
-                args.root or ([Path.cwd()] if args.check else []),
+                args.root or [],
                 args.cache_dir or cache_root(),
                 allow_network=args.allow_network,
+                validate=not args.check,
             )
             server = create_server(service)
             if args.check:
