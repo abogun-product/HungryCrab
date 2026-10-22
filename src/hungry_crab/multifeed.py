@@ -198,7 +198,7 @@ def eat_many(
         return EatResult(out, manifest)
     finally:
         if staged.exists():
-            rmtree_force(staged)
+            rmtree_force(staged, cache_root=staged.parent)
 
 
 def load_multi(root: Path) -> tuple[dict[str, Any], dict[str, Path], dict[str, str]]:

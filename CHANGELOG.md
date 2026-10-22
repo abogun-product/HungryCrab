@@ -263,6 +263,24 @@ tracked in [docs/design/03-roadmap.md](docs/design/03-roadmap.md); this file tra
   now require explicit human review
   ([#149](https://github.com/drevendev/HungryCrab/pull/149)).
 
+- **Claude Code sees a new release of the plugin as an update.** Claude Code offers a plugin
+  update only when the version string it computes changes, and the plugin carried the same
+  version in `.claude-plugin/plugin.json` and in its marketplace entry. The entry no longer has
+  one: the version lives in `plugin.json` alone and moves at each release, which is when the
+  **Update** button lights up. The README says how to turn on auto-update for the marketplace,
+  which Claude Code leaves off for third-party marketplaces, and a release now bumps five
+  version places instead of six.
+- **Cache deletion stays inside the cache and works under a linked cache root.** `crab cache rm`,
+  `crab catch --force` and the replacement of a clone without `.git` made every entry of the
+  tree writable before deleting it, and `chmod` followed a symlink to its target outside the
+  cache. Nothing is made writable up front now: an entry is retried only after its deletion
+  fails, and only when every component from the cache root down to it is a real directory or
+  file, never a symlink or a Windows junction. The cache root and its parents are left alone,
+  so `~/.cache` on another disk, `CRAB_CACHE_DIR` in a junctioned folder and
+  `/home -> /var/home` keep working. A tree that cannot be removed is a reported error with a
+  hint instead of a traceback, and digest references refuse junctions as well as symlinks.
+  Checking that the cache owns what it deletes is still open
+  ([#211](https://github.com/drevendev/HungryCrab/issues/211)).
 - **GitHub REST responses have a byte budget before JSON decoding.** Both `gh api` and
   HTTPS refuse a response larger than 8 MiB instead of buffering it without a bound. The
   `gh` transport drains both pipes concurrently, caps stderr at 64 KiB, and kills and reaps
