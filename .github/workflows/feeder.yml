@@ -38,6 +38,9 @@ on:
       runner:
         type: string
         default: ubuntu-latest
+      allow-private-artifact:
+        type: boolean
+        default: false
     secrets:
       prey-token:
         description: Optional read token for a private prey outside the caller repository
@@ -81,3 +84,4 @@ jobs:
           allow-loss: ${{ inputs.allow-loss }}
           artifact-name: ${{ inputs.artifact-name }}
           retention-days: ${{ inputs.retention-days }}
+          allow-private-artifact: ${{ inputs.allow-private-artifact }}

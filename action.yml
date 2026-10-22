@@ -50,6 +50,11 @@ inputs:
   retention-days:
     description: Meal artifact retention in days
     default: '14'
+  allow-private-artifact:
+    description: >-
+      Upload the meal although the calling repository is public and the prey is not verifiably
+      public; its digest then becomes downloadable by anyone signed in to GitHub
+    default: 'false'
 outputs:
   bundle-path:
     description: Local meal bundle directory
@@ -91,6 +96,7 @@ runs:
         CRAB_ALLOW_LOSS: ${{ inputs.allow-loss }}
         CRAB_OUT: ${{ inputs.out }}
         CRAB_CACHE: ${{ inputs.cache-dir }}
+        CRAB_ALLOW_PRIVATE_ARTIFACT: ${{ inputs.allow-private-artifact }}
         PYTHONIOENCODING: utf-8
       run: |
         uv run --directory "$env:CRAB_ACTION_PATH" --locked --no-dev python "$env:CRAB_ACTION_PATH/scripts/feeder_action.py"

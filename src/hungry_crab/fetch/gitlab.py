@@ -93,6 +93,8 @@ class GitLabClient:
                 as_dict(raw.get("statistics")).get("repository_size"), int
             ),
             "license": {"spdx_id": license_data.get("key"), "name": license_data.get("name")},
+            "visibility": raw.get("visibility"),
+            "private": raw.get("visibility") != "public",
             "provider": "gitlab",
         }
 
