@@ -353,13 +353,16 @@ def parse_maven(text: str, manifest: str) -> tuple[list[Package], dict[str, Any]
         if not group or not artifact:
             continue
         version = (dependency.findtext("version") or managed.get((group, artifact), "")).strip()
-        for _ in range(8):
-            replaced = re.sub(r"\$\{([^}]+)\}", lambda m: props.get(m[1], m[0]), version)
-            if replaced == version:
-                break
-            version = replaced
-        if "${" in version or not version:
+        expanded = _expand_maven_properties(version, props)
+        if expanded is None:
+            # A property that expands into a huge string is a hostile or broken POM; record the
+            # coordinate as unresolved instead of building it.
+            version = version[:_MAX_MAVEN_VERSION]
             unresolved.append(f"{group}:{artifact}")
+        else:
+            version = expanded
+            if "${" in version or not version:
+                unresolved.append(f"{group}:{artifact}")
         scope = (dependency.findtext("scope") or "compile").strip()
         packages.append(
             Package(
@@ -380,12 +383,37 @@ def parse_maven(text: str, manifest: str) -> tuple[list[Package], dict[str, Any]
     }
 
 
+_MAVEN_PROPERTY = re.compile(r"\$\{([^}]+)\}")
+_MAX_MAVEN_VERSION = 256
+
+
+def _expand_maven_properties(version: str, props: dict[str, str]) -> str | None:
+    """Expand ``${name}`` references, or None once a version would exceed a sane length.
+
+    Properties may reference properties, so a few hundred bytes can describe gigabytes (one
+    property naming another 25,000 times). The length of each round is computed from the match
+    spans before the string is built.
+    """
+    for _ in range(8):
+        matches = list(_MAVEN_PROPERTY.finditer(version))
+        if not matches:
+            return version
+        length = len(version) + sum(len(props.get(m[1], m[0])) - len(m[0]) for m in matches)
+        if length > _MAX_MAVEN_VERSION:
+            return None
+        replaced = _MAVEN_PROPERTY.sub(lambda m: props.get(m[1], m[0]), version)
+        if replaced == version:
+            return version
+        version = replaced
+    return version
+
+
 def parse_gradle(text: str, manifest: str) -> tuple[list[Package], dict[str, Any]]:
     # Only literal coordinates. Gradle is executable: interpolation/catalogs are never run.
-    cleaned = re.sub(r"/\*.*?\*/|^\s*//[^\n]*", "", text, flags=re.DOTALL | re.MULTILINE)
+    cleaned = re.sub(r"/\*.*?\*/|^[ \t]*//[^\n]*", "", text, flags=re.DOTALL | re.MULTILINE)
     packages: list[Package] = []
     pattern = re.compile(
-        r"(?m)^\s*(implementation|api|compileOnly|runtimeOnly|"
+        r"(?m)^[ \t]*(implementation|api|compileOnly|runtimeOnly|"
         r"testImplementation|testRuntimeOnly|annotationProcessor)\s*\(?\s*"
         r"(['\"])([\w.-]+):([\w.-]+):([^'\"\n]+)\2"
     )
@@ -403,7 +431,7 @@ def parse_gradle(text: str, manifest: str) -> tuple[list[Package], dict[str, Any
         )
     declarations = len(
         re.findall(
-            r"(?m)^\s*(?:implementation|api|compileOnly|runtimeOnly|"
+            r"(?m)^[ \t]*(?:implementation|api|compileOnly|runtimeOnly|"
             r"testImplementation|testRuntimeOnly|annotationProcessor)\b",
             cleaned,
         )
