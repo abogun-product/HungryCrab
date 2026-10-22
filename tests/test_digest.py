@@ -39,8 +39,6 @@ EXPECTED_FILES = {
     "traits.json",
     "wiki.json",
     "wiki.md",
-    "symbols.json",
-    "symbols.md",
     "signals.json",
     "signals.md",
 }

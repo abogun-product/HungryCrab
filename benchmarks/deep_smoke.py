@@ -60,24 +60,19 @@ def main() -> None:
         )
         bundle = result.out_dir
         manifest = json.loads((bundle / "prey-digest/manifest.json").read_text(encoding="utf-8"))
-        assert len(manifest["miners"]) == 15 and all(m["ok"] for m in manifest["miners"])
+        assert len(manifest["miners"]) == 14 and all(m["ok"] for m in manifest["miners"])
         assert manifest["coverage"]["healthy"]
-        symbols = json.loads((bundle / "prey-digest/symbols.json").read_text(encoding="utf-8"))
-        assert symbols["available"] and symbols["symbols"] and symbols["edges"]
         signals = json.loads((bundle / "prey-digest/signals.json").read_text(encoding="utf-8"))
         assert not protected_signals or all(
             signals["channels"][c]["status"] == "available" for c in ("reviews", "runs")
         )
         menu = json.loads((bundle / "menu.json").read_text(encoding="utf-8"))
-        assert any(c["category"] == "code" for c in menu["candidates"])
+        assert menu["candidates"]
         assert not git.run("status", "--porcelain").strip()
         results.append(
             {
                 "forge": name,
                 "sha": manifest["prey"]["sha"],
-                "symbols": len(symbols["symbols"]),
-                "edges": len(symbols["edges"]),
-                "symbol_coverage": symbols["coverage"],
                 "protected_signals_requested": protected_signals,
                 "bundle": str(bundle),
             }

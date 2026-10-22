@@ -38,9 +38,8 @@ from .fetch.git import GitRunner
 from .fetch.issues import read_issues
 from .fs import read_text
 from .miners import MINER_NAMES, MineContext, Miner, select_miners
-from .miners.symbols import runtime_identity
 from .tokens import estimate_tokens
-from .typeutil import as_dict, as_list
+from .typeutil import as_list
 
 SCHEMA = "hungry-crab.digest/1"
 MD_BUDGET = {"normal": 3500, "deep": 12000}
@@ -126,7 +125,6 @@ def worktree_fingerprint(git: GitRunner | None, root: Path) -> str:
 def _analysis_identity(ctx: MineContext) -> dict[str, object]:
     encoded = json.dumps(ctx.api, sort_keys=True, separators=(",", ":"))
     return {
-        "parsers": runtime_identity(),
         "api_sha256": hashlib.sha256(encoded.encode()).hexdigest(),
     }
 
@@ -798,10 +796,6 @@ def _is_reusable(
         or cached_worktree == "unknown"
         or ctx.wiki_info.get("worktree") == "unknown"
     ):
-        return False
-    symbols = _load_json(out_dir / "symbols.json") or {}
-    coverage = as_dict(symbols.get("coverage"))
-    if any(coverage.get(status) for status in ("parser-crash", "parser-timeout", "parser-limit")):
         return False
     return (
         cached.get("schema") == SCHEMA

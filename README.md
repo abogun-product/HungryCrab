@@ -42,9 +42,8 @@ it may.
 release; the integrated development candidate is 0.5.0.dev0, "Taste Memory".** Taste Memory adds confirmed
 decision learning, gap-directed GitHub discovery, multi-prey menus and reviewed hunger profiles.
 See the [Taste Memory guide](docs/taste-memory.md). Feeder and Scheduled Crab provide
-deterministic meals and guarded publication. Deep Bite adds optional syntax indexes and
-symbol-backed code/architecture cards, Discussions, review comments, CI reliability evidence,
-eight dependency ecosystems and GitLab.com acquisition. B1 now includes a ranking pressure
+deterministic meals and guarded publication. Deep Bite adds Discussions, review comments, CI
+reliability evidence, eight dependency ecosystems and GitLab.com acquisition. B1 now includes a ranking pressure
 gate; B2 has a frozen, blinded experiment pipeline. Release and live acceptance evidence remain
 tracked separately. See the [roadmap](docs/design/03-roadmap.md),
 [Deep Bite guide](docs/deep-bite.md), [Feeder guide](docs/feeder.md) and
@@ -71,13 +70,7 @@ Prerequisites: Python 3.11+, `git`, and `gh` authenticated for the GitHub API.
 uv tool install "hungry-crab @ git+https://github.com/drevendev/HungryCrab"
 ```
 
-Optional native syntax analysis uses `hungry-crab[deep]` on the same source or version:
-
-```bash
-uv tool install "hungry-crab[deep] @ git+https://github.com/drevendev/HungryCrab"
-```
-
-The base installation keeps PyYAML as its only runtime dependency. GitLab.com public reads do
+The installation keeps PyYAML as its only runtime dependency. GitLab.com public reads do
 not require `gh`; private reads use `GITLAB_TOKEN`. GitHub Discussions and JUnit artifact reads
 need the corresponding authenticated API permissions.
 
@@ -253,7 +246,7 @@ hunger:                    # per nutrient category: true | false | issues-only |
   history-lesson: true
   issue-lesson: true
   architecture: issues-only
-  code: ideas-only         # syntax-backed review subjects; require an architectural judgment
+  code: ideas-only         # produced by nothing until 0.4's postponed syntax index: inert
 ignore: []                 # globs excluded from this repository's own digest, so that test
                            # fixtures and vendored trees are not mistaken for your code, e.g.
                            # [tests/fixtures/**, examples/**]. Patterns are case-sensitive on

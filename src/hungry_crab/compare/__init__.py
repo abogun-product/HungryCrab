@@ -147,26 +147,6 @@ def compare_digests(
     now = opts.now or datetime.now(UTC)
     for candidate in candidates:
         candidate.license_mode = str(verdict["mode"])
-        if "symbols" in candidate.tags:
-            # Syntax evidence is not a per-file permission grant. A review flag or any
-            # applicable license exception makes this review subject fail closed.
-            paths = [e.path for e in candidate.evidence]
-            exceptions = [as_dict(e) for e in as_list(prey.license.get("exceptions"))]
-            applicable = any(
-                e.get("path") == path
-                or (
-                    e.get("kind") == "nested"
-                    and isinstance(e.get("path"), str)
-                    and path.startswith(str(e["path"]).rsplit("/", 1)[0] + "/")
-                )
-                for e in exceptions
-                for path in paths
-            )
-            if prey.license.get("human_review") or applicable:
-                candidate.license_mode = "HUMAN"
-                candidate.trace["symbol_license_review"] = (
-                    "review flag or applicable file exception"
-                )
         candidate.material = nutrient_material(
             candidate.category, [e.path for e in candidate.evidence]
         )

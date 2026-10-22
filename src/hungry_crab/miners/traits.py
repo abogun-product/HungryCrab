@@ -179,7 +179,6 @@ class TraitsMiner:
         "ai_config",
         "history",
         "branches",
-        "symbols",
         "signals",
     )
     json_file = "traits.json"
@@ -388,9 +387,6 @@ class TraitsMiner:
             "wiki_enabled": repo_meta.get("has_wiki"),
             "has_discussions": repo_meta.get("has_discussions"),
             "default_branch": repo_meta.get("default_branch") or branches.get("default_branch"),
-            "symbols_available": ctx.data("symbols").get("available", False),
-            "symbols_indexed": len(ctx.data("symbols").get("symbols", [])),
-            "lexical_call_edges": len(ctx.data("symbols").get("edges", [])),
             "ci_sample_runs": ctx.data("signals").get("runs", {}).get("count", 0),
             "ci_rerun_recoveries": ctx.data("signals")
             .get("runs", {})

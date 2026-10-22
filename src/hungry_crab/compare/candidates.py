@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -63,7 +62,6 @@ _DIGEST_FILES = {
     "license": "license.json",
     "issues": "issues.json",
     "architecture": "architecture.json",
-    "symbols": "symbols.json",
     "signals": "signals.json",
     "manifest": "manifest.json",
 }
@@ -97,7 +95,6 @@ class Side:
     license: dict[str, Any] = field(default_factory=dict)
     issues: dict[str, Any] = field(default_factory=dict)
     architecture: dict[str, Any] = field(default_factory=dict)
-    symbols: dict[str, Any] = field(default_factory=dict)
     signals: dict[str, Any] = field(default_factory=dict)
     manifest: dict[str, Any] = field(default_factory=dict)
 
@@ -126,7 +123,6 @@ class Side:
             license=data["license"],
             issues=data["issues"],
             architecture=data["architecture"],
-            symbols=data["symbols"],
             signals=data["signals"],
             manifest=manifest,
         )
@@ -889,88 +885,6 @@ def architecture_candidates(prey: Side, maw: Side) -> list[Candidate]:
     ]
 
 
-def symbol_candidates(prey: Side, maw: Side) -> list[Candidate]:
-    """Syntax-backed review subjects, with no claim that a name proves a useful algorithm."""
-    if not prey.symbols.get("available"):
-        return []
-    symbols = [as_dict(s) for s in as_list(prey.symbols.get("symbols"))]
-    maw_names = {
-        (str(s.get("language")), str(s.get("qualified_name")))
-        for s in map(as_dict, as_list(maw.symbols.get("symbols")))
-    }
-    maw_languages = {
-        str(s.get("language")) for s in map(as_dict, as_list(maw.symbols.get("symbols")))
-    }
-    incoming: dict[str, set[str]] = {}
-    outgoing: dict[str, set[str]] = {}
-    for edge in as_list(prey.symbols.get("edges")):
-        if isinstance(edge, list) and len(edge) == 2:
-            source, target = str(edge[0]), str(edge[1])
-            incoming.setdefault(target, set()).add(source)
-            outgoing.setdefault(source, set()).add(target)
-    out: list[Candidate] = []
-    for symbol in sorted(
-        symbols, key=lambda s: (-len(incoming.get(str(s.get("id")), set())), str(s.get("id")))
-    ):
-        sid, path = str(symbol.get("id", "")), str(symbol.get("path", ""))
-        name, language = str(symbol.get("qualified_name", "")), str(symbol.get("language", ""))
-        if (
-            symbol.get("ambiguous")
-            or symbol.get("kind") not in {"function", "method"}
-            or not incoming.get(sid)
-            or language not in maw_languages
-            or (language, name) in maw_names
-            or any(p.lower() in {"test", "tests", "examples", "fixtures"} for p in path.split("/"))
-            or not isinstance(symbol.get("start_line"), int)
-            or not isinstance(symbol.get("end_line"), int)
-        ):
-            continue
-        start, end = symbol["start_line"], symbol["end_line"]
-        evidence = prey.evidence(
-            path, f"Declaration {name}, lines {start}-{end}; lexical call graph"
-        )
-        if evidence.url:
-            evidence.url += f"#L{start}-L{end}"
-        out.append(
-            Candidate(
-                category="code",
-                origin=ContentOrigin.LICENSED.value,
-                key=f"symbols.{slugify(prey.label)}."
-                + hashlib.sha256(f"{prey.label}\0{sid}".encode()).hexdigest()[:20],
-                title=f"Review the callable boundary {name}",
-                what=f"{path} declares {name}; {len(incoming[sid])} distinct lexical callers "
-                f"and {len(outgoing.get(sid, set()))} resolved outgoing references.",
-                prey_state=f"{language} declaration with line-level syntax evidence",
-                maw_state="No declaration with this qualified name in the maw's indexed files",
-                serve_as="idea",
-                effort="M",
-                value=0.45,
-                risk="medium",
-                evidence=[evidence],
-                tags=["symbols", language, "review-required"],
-                trace={"symbol_id": sid, "graph_kind": "lexical-same-file"},
-            )
-        )
-        if len(out) >= 12:
-            break
-    if out:
-        out.append(
-            Candidate(
-                category="architecture",
-                origin=ContentOrigin.LICENSED.value,
-                key=f"architecture.{slugify(prey.label)}.symbols",
-                title="Review symbol boundaries and their callers",
-                what=f"{len(out)} boundaries have declaration and lexical caller evidence.",
-                serve_as="idea",
-                effort="L",
-                value=0.4,
-                evidence=[c.evidence[0] for c in out[:3]],
-                tags=["architecture", "symbols"],
-            )
-        )
-    return out
-
-
 def signal_candidates(prey: Side, maw: Side) -> list[Candidate]:
     out: list[Candidate] = []
     channels = as_dict(prey.signals.get("channels"))
@@ -1047,7 +961,6 @@ def build_candidates(prey: Side, maw: Side) -> tuple[list[Candidate], dict[str, 
         history_candidates(prey, maw),
         issue_candidates(prey, maw),
         architecture_candidates(prey, maw),
-        symbol_candidates(prey, maw),
         signal_candidates(prey, maw),
     ]
     seen: set[str] = set()

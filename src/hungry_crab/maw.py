@@ -75,7 +75,7 @@ hunger:                    # per nutrient category: true | false | issues-only |
   history-lesson: true
   issue-lesson: true
   architecture: issues-only
-  code: ideas-only         # syntax-backed review subjects; require an architectural judgment
+  code: ideas-only         # produced by nothing until 0.4's postponed syntax index: inert
 ignore: []                 # globs excluded from this repository's own digest, so that test
                            # fixtures and vendored trees are not mistaken for your code, e.g.
                            # [tests/fixtures/**, examples/**]. Patterns are case-sensitive on

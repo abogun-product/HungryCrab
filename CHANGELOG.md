@@ -27,10 +27,11 @@ tracked in [docs/design/03-roadmap.md](docs/design/03-roadmap.md); this file tra
   thresholds fail, and every uptake kind uses its configured weight. Reject maw config typos and
   wrong-shaped settings before applying policy. See [Taste Memory](docs/taste-memory.md).
 
-- **0.4 Deep Bite (development milestone):** optional official tree-sitter grammars for nine
-  languages, isolated bounded parsing, declaration indexes and conservative lexical call
-  graphs. The first `code` cards and new architecture cards carry stable ids and source-line
-  evidence, with file licence review narrowing the subject to HUMAN when necessary.
+- **0.4 Deep Bite (development milestone):** provider signals and eight dependency ecosystems,
+  below. The optional tree-sitter syntax index it also planned is postponed until a real
+  evidence gap asks for it: native parsers reading hostile prey, ten more packages to keep in
+  step and digests that differ by environment outweighed what it added, so `code` stays a
+  deferred category and the runtime dependency is still PyYAML alone.
 - **Provider signals:** opt-in GitHub Discussions, GitHub/GitLab review comments and run samples;
   job durations and rerun recoveries, plus explicit JUnit flaky-rerun evidence. Unknown report
   coverage stays unknown. Commenter prose remains JSON-only and cannot be quoted in served
