@@ -94,3 +94,34 @@ def test_rust_workspace_and_target_dependencies_do_not_guess_pins() -> None:
     by_name = {p.name: p for p in packages}
     assert by_name["serde"].spec == "workspace" and by_name["serde"].pinned is None
     assert by_name["libc"].pinned is True and info["workspace_members"] == ["core"]
+
+
+def test_maven_property_expansion_is_bounded() -> None:
+    """One property naming another thousands of times must not build a gigabyte string."""
+    huge = "x" * 100_000
+    source = (
+        "<project><properties>"
+        f"<a>{'${b}' * 25_000}</a><b>{huge}</b><ok>1.2.3</ok>"
+        "</properties><dependencies>"
+        "<dependency><groupId>g</groupId><artifactId>bomb</artifactId>"
+        "<version>${a}</version></dependency>"
+        "<dependency><groupId>g</groupId><artifactId>fine</artifactId>"
+        "<version>${ok}</version></dependency>"
+        "</dependencies></project>"
+    )
+    packages, info = parse_maven(source, "pom.xml")
+    versions = {p.name: p.spec for p in packages}
+    assert versions["g:fine"] == "1.2.3"
+    assert len(versions["g:bomb"]) <= 256
+    assert info["unresolved_versions"] == ["g:bomb"]
+
+
+def test_gradle_parsing_is_linear_in_blank_lines() -> None:
+    """A line anchor followed by a newline-matching space class is quadratic on a blank flood."""
+    import time
+
+    source = "\n" * 200_000 + "x\nimplementation 'g:a:1.0'\n"
+    started = time.perf_counter()
+    packages, _ = parse_gradle(source, "build.gradle")
+    assert time.perf_counter() - started < 5
+    assert [p.name for p in packages] == ["g:a"]

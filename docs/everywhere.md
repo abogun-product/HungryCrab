@@ -24,8 +24,8 @@ PATH differs from your terminal. `uv tool dir --bin` locates uv's executable dir
 `uv tool update-shell` explains how to expose it to new terminals.
 
 The base install omits `[mcp]` and keeps PyYAML as its sole runtime dependency. HTML reports
-work in the base install. MCP uses the official Python SDK as an optional extra. Add `[deep]`
-for native syntax analysis, or `[mcp,deep]` for both. A base-only `crab mcp --check` reports the
+work in the base install. MCP uses the official Python SDK as an optional extra, the only one.
+A base-only `crab mcp --check` reports the
 missing extra with exit code 2; it does not install anything itself.
 
 Build/install your own reviewed checkout without Git-based installation:

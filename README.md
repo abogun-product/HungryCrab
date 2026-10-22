@@ -67,13 +67,7 @@ Prerequisites: Python 3.11+, `git`, and `gh` authenticated for the GitHub API.
 uv tool install "hungry-crab @ git+https://github.com/drevendev/HungryCrab"
 ```
 
-Optional native syntax analysis uses `hungry-crab[deep]` on the same source or version:
-
-```bash
-uv tool install "hungry-crab[deep] @ git+https://github.com/drevendev/HungryCrab"
-```
-
-The base installation keeps PyYAML as its only runtime dependency. GitLab.com public reads do
+The installation keeps PyYAML as its only runtime dependency. GitLab.com public reads do
 not require `gh`; private reads use `GITLAB_TOKEN`. GitHub Discussions and JUnit artifact reads
 need the corresponding authenticated API permissions.
 
@@ -92,6 +86,12 @@ claude plugin marketplace add drevendev/HungryCrab
 ```bash
 claude plugin install crab@hungry-crab
 ```
+
+Claude Code offers a plugin update when the plugin's version changes, which happens at each
+release rather than at every commit to `master`. It does not refresh third-party marketplaces on
+its own: turn that on once in `/plugin` → **Marketplaces** → `hungry-crab` → **Enable
+auto-update**, or refresh by hand with `claude plugin marketplace update hungry-crab` followed by
+`claude plugin update crab@hungry-crab`.
 
 **Codex**, same plugin, same marketplace:
 
@@ -254,7 +254,7 @@ hunger:                    # per nutrient category: true | false | issues-only |
   history-lesson: true
   issue-lesson: true
   architecture: issues-only
-  code: ideas-only         # syntax-backed review subjects; require an architectural judgment
+  code: ideas-only         # produced by nothing until 0.4's postponed syntax index: inert
 ignore: []                 # globs excluded from this repository's own digest, so that test
                            # fixtures and vendored trees are not mistaken for your code, e.g.
                            # [tests/fixtures/**, examples/**]. Patterns are case-sensitive on

@@ -8,9 +8,11 @@ depth 1, tree-only). Nothing inside the clone is ever executed.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import stat
+import sys
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
@@ -18,7 +20,9 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from ..cache import Slug, prey_paths
-from ..errors import ExternalCommandError, UsageError
+from ..cache import cache_root as default_cache_root
+from ..errors import CrabError, ExternalCommandError, UsageError
+from ..fs import is_reparse_point
 from . import channels
 from .git import GitRunner
 from .issues import fetch_issues, write_issues
@@ -79,14 +83,67 @@ def parse_since(text: str, *, now: datetime | None = None) -> date:
         ) from exc
 
 
-def rmtree_force(path: Path) -> None:
-    """``shutil.rmtree`` that copes with read-only git objects on Windows."""
-    for child in path.rglob("*"):
+def _require_real_entries(item: Path, *, cache_root: Path) -> os.stat_result:
+    """Refuse ``item`` unless every component below ``cache_root`` down to it is a real entry.
+
+    ``cache_root`` and its ancestors are the user's choice and are not inspected: ``~/.cache``
+    on a data disk, ``CRAB_CACHE_DIR`` in a junctioned folder or ``/home -> /var/home`` are
+    ordinary setups. Below the root everything is the crab's own, so a symlink or a Windows
+    reparse point there is refused rather than followed. Returns the ``lstat`` of ``item``.
+    """
+    try:
+        parts = item.absolute().relative_to(cache_root.absolute()).parts
+    except ValueError:
+        parts = ()
+    if not parts or ".." in parts:
+        raise CrabError(f"refusing cache deletion of {item}: not inside the cache {cache_root}")
+    component = cache_root.absolute()
+    for part in parts:
+        component /= part
         try:
-            child.chmod(child.stat().st_mode | stat.S_IWRITE)
-        except OSError:
-            continue
-    shutil.rmtree(path)
+            info = component.lstat()
+        except OSError as exc:
+            raise CrabError(f"cannot inspect cache deletion path {component}: {exc}") from exc
+        real = stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)
+        if not real or is_reparse_point(info):
+            raise CrabError(f"refusing cache deletion through link/reparse path {component}")
+    return info
+
+
+def rmtree_force(path: Path, *, cache_root: Path) -> None:
+    """Delete one directory inside ``cache_root`` without changing permissions outside it.
+
+    A failed deletion can leave cache debris. It is safer to report that state than
+    to chmod symlink/junction targets or hide a partially removed checkout.
+    """
+    if not stat.S_ISDIR(_require_real_entries(path, cache_root=cache_root).st_mode):
+        raise CrabError(f"refusing cache deletion of {path}: not a directory")
+
+    def retry_readonly(func: Callable[..., object], filename: str, _failure: object) -> None:
+        """Repair only the item that failed, after refusing any link/junction component."""
+        item = Path(filename)
+        if not item.absolute().is_relative_to(path.absolute()):
+            raise CrabError(f"refusing cache cleanup outside its root: {item}")
+        _require_real_entries(item, cache_root=cache_root)
+        try:
+            item.chmod(item.lstat().st_mode | stat.S_IWRITE)
+            func(filename)
+        except OSError as exc:
+            raise CrabError(f"cannot remove read-only cache entry {item}: {exc}") from exc
+
+    try:
+        if sys.version_info >= (3, 12):
+            shutil.rmtree(path, onexc=retry_readonly)
+        else:
+            shutil.rmtree(path, onerror=retry_readonly)
+    except OSError as exc:
+        raise CrabError(
+            f"cannot safely remove cached files in {path}: {exc}",
+            hint=(
+                "Close programs holding files and inspect what remains. "
+                "No recursive chmod traversal was attempted."
+            ),
+        ) from exc
 
 
 def clone_arguments(options: CatchOptions, *, now: datetime | None = None) -> list[str]:
@@ -99,6 +156,44 @@ def clone_arguments(options: CatchOptions, *, now: datetime | None = None) -> li
     return args
 
 
+def clone_policy(options: CatchOptions) -> dict[str, object]:
+    """What the clone was asked for, as the caller said it.
+
+    The recorded policy decides whether a cached clone can be refreshed or must be replaced.
+    It holds ``--since`` as given, not the date it resolves to: ``90d`` names a new date every
+    day, and comparing resolved dates replaced the whole clone on every daily refresh.
+    """
+    since = options.since.strip().lower() if options.since else None
+    return {"shallow": options.shallow, "since": since}
+
+
+def _fetch_channels(
+    client: RepositoryClient,
+    slug: Slug,
+    opts: CatchOptions,
+    api_dir: Path,
+    log: Callable[[str], None],
+) -> int:
+    """Fetch the requested provider samples into ``api_dir``; return the issue count."""
+    issues_fetched = 0
+    if opts.issues > 0:
+        items = fetch_issues(client, slug, limit=opts.issues, log=log)
+        write_issues(api_dir / "issues.jsonl", items)
+        issues_fetched = len(items)
+    for name in ("discussions", "reviews", "runs"):
+        limit = getattr(opts, name)
+        if limit:
+            data = getattr(channels, name)(client, slug, limit)
+            api_dir.mkdir(parents=True, exist_ok=True)
+            temporary = api_dir / f".{name}-{uuid.uuid4().hex}.tmp"
+            try:
+                temporary.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+                temporary.replace(api_dir / f"{name}.json")
+            finally:
+                temporary.unlink(missing_ok=True)
+    return issues_fetched
+
+
 def catch(
     slug: Slug,
     options: CatchOptions | None = None,
@@ -109,14 +204,21 @@ def catch(
     now: datetime | None = None,
     github: RepositoryClient | None = None,
     wiki_source_url: str | None = None,
+    channels_only: bool = False,
 ) -> CatchResult:
-    """Clone or refresh the prey. ``source_url`` overrides the GitHub URL (used by tests)."""
+    """Clone or refresh the prey. ``source_url`` overrides the GitHub URL (used by tests).
+
+    ``channels_only`` fetches the requested provider samples for a prey that is already caught
+    and leaves its tree at the cached commit: a digest that asks for issues must not move the
+    prey to a newer upstream commit, or replace a shallow cache with a full clone.
+    """
     opts = options or CatchOptions()
     # Validate before changing any cache. A bad date used to delete a valid --force clone.
     clone_args = clone_arguments(opts, now=now)
     if any(not 0 <= n <= 3000 for n in (opts.issues, opts.discussions, opts.reviews, opts.runs)):
         raise UsageError("--issues, --discussions, --reviews and --runs must be in 0..3000")
-    paths = prey_paths(slug, cache_root)
+    root = cache_root if cache_root is not None else default_cache_root()
+    paths = prey_paths(slug, root)
     root_existed = paths.root.exists()
     paths.root.mkdir(parents=True, exist_ok=True)
     repo_dir = paths.repo
@@ -134,7 +236,39 @@ def catch(
                 previous = value
         except (OSError, ValueError):
             pass
-    policy_changed = previous.get("clone_policy") != clone_args
+    if channels_only and (repo_dir / ".git").exists() and previous:
+        log(f"fetching provider samples for {slug}; the cached tree stays at its commit")
+        git = GitRunner(repo_dir)
+        issues_fetched = _fetch_channels(client, slug, opts, paths.api, log)
+        recorded_wiki = previous.get("wiki")
+        recorded_window = previous.get("history_window_applied")
+        result = CatchResult(
+            slug=str(slug),
+            url=url,
+            repo_dir=str(repo_dir),
+            sha=git.head_sha(),
+            default_branch=git.default_branch(),
+            shallow=git.is_shallow(),
+            since=str(previous["since"]) if isinstance(previous.get("since"), str) else None,
+            updated=False,
+            caught_at=str(previous.get("caught_at") or ""),
+            issues_fetched=issues_fetched,
+            wiki=dict(recorded_wiki) if isinstance(recorded_wiki, dict) else None,
+            history_window_applied=recorded_window if isinstance(recorded_window, bool) else None,
+        )
+        recorded = {
+            **previous,
+            "issues_fetched": issues_fetched,
+            "channels_at": (now or datetime.now(UTC)).isoformat(timespec="seconds"),
+        }
+        paths.catch_file.write_text(json.dumps(recorded, indent=2) + "\n", encoding="utf-8")
+        return result
+
+    # A clone without a usable record (a cache from before the policy was recorded, or a
+    # catch that failed after cloning) is refreshed, not replaced: replacing it would throw
+    # away a valid tree and download the whole history again.
+    recorded_policy = previous.get("clone_policy")
+    policy_changed = isinstance(recorded_policy, dict) and recorded_policy != clone_policy(opts)
     history_window_applied = True if opts.since else None
     if (repo_dir / ".git").exists() and not opts.force and not policy_changed:
         log(f"refreshing {slug} in {repo_dir}")
@@ -214,31 +348,21 @@ def catch(
 
     wiki_info: dict[str, object] = {"status": "disabled", "sha": None}
     if opts.wiki and (source_url is None or wiki_source_url is not None):
-        wiki_info = catch_wiki(
-            paths.wiki,
-            wiki_source_url or slug.wiki_clone_url,
-            log=log,
-            token=token,
-            auth_host=auth_host,
-        )
+        wiki_url = wiki_source_url or slug.wiki_clone_url
+        try:
+            wiki_info = catch_wiki(paths.wiki, wiki_url, log=log, token=token, auth_host=auth_host)
+        except ExternalCommandError as exc:
+            if wiki_source_url is not None:
+                raise
+            # The wiki is a second repository the prey may not have. Without credentials,
+            # GitHub answers a probe for a missing wiki with an authentication prompt rather
+            # than "not found", so a failed probe is evidence about the wiki, never a reason
+            # to fail the catch of the prey itself.
+            reason = " ".join(exc.message.split())[:200] or "probe failed"
+            log(f"wiki: unavailable ({reason})")
+            wiki_info = {"status": "unavailable", "sha": None, "url": wiki_url, "reason": reason}
 
-    issues_fetched = 0
-    if opts.issues > 0:
-        items = fetch_issues(client, slug, limit=opts.issues, log=log)
-        write_issues(paths.api / "issues.jsonl", items)
-        issues_fetched = len(items)
-
-    for name in ("discussions", "reviews", "runs"):
-        limit = getattr(opts, name)
-        if limit:
-            data = getattr(channels, name)(client, slug, limit)
-            paths.api.mkdir(parents=True, exist_ok=True)
-            temporary = paths.api / f".{name}-{uuid.uuid4().hex}.tmp"
-            try:
-                temporary.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-                temporary.replace(paths.api / f"{name}.json")
-            finally:
-                temporary.unlink(missing_ok=True)
+    issues_fetched = _fetch_channels(client, slug, opts, paths.api, log)
 
     result = CatchResult(
         slug=str(slug),
@@ -254,7 +378,7 @@ def catch(
         wiki=wiki_info,
         history_window_applied=history_window_applied,
     )
-    recorded = {**result.to_dict(), "clone_policy": clone_args}
+    recorded = {**result.to_dict(), "clone_policy": clone_policy(opts)}
     paths.catch_file.write_text(json.dumps(recorded, indent=2) + "\n", encoding="utf-8")
     return result
 
@@ -286,9 +410,9 @@ def _clone_replace(
             raise
     finally:
         if staged.exists():
-            rmtree_force(staged)
+            rmtree_force(staged, cache_root=staged.parent)
     if backup.exists():
-        rmtree_force(backup)
+        rmtree_force(backup, cache_root=backup.parent)
 
 
 def catch_wiki(

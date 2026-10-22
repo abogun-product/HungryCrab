@@ -40,10 +40,11 @@ tracked in [docs/design/03-roadmap.md](docs/design/03-roadmap.md); this file tra
   thresholds fail, and every uptake kind uses its configured weight. Reject maw config typos and
   wrong-shaped settings before applying policy. See [Taste Memory](docs/taste-memory.md).
 
-- **0.4 Deep Bite (development milestone):** optional official tree-sitter grammars for nine
-  languages, isolated bounded parsing, declaration indexes and conservative lexical call
-  graphs. The first `code` cards and new architecture cards carry stable ids and source-line
-  evidence, with file licence review narrowing the subject to HUMAN when necessary.
+- **0.4 Deep Bite (development milestone):** provider signals and eight dependency ecosystems,
+  below. The optional tree-sitter syntax index it also planned is postponed until a real
+  evidence gap asks for it: native parsers reading hostile prey, ten more packages to keep in
+  step and digests that differ by environment outweighed what it added, so `code` stays a
+  deferred category and the runtime dependency is still PyYAML alone.
 - **Provider signals:** opt-in GitHub Discussions, GitHub/GitLab review comments and run samples;
   job durations and rerun recoveries, plus explicit JUnit flaky-rerun evidence. Unknown report
   coverage stays unknown. Commenter prose remains JSON-only and cannot be quoted in served
@@ -51,8 +52,9 @@ tracked in [docs/design/03-roadmap.md](docs/design/03-roadmap.md); this file tra
   ownership; publication still requires a GitHub maw.
 - **Eight dependency ecosystems:** Python, npm, .NET, Go, Rust, Ruby, JVM (Maven/Gradle), PHP
   (Composer), with explicit unresolved inheritance/catalog facts and no package execution.
-- **Quality measurement:** a 56-candidate B1 ranking pressure gate alongside the unchanged human
-  corpus, and B2 freeze/record/blind/fact-check/report commands with immutable receipts, common
+- **Quality measurement:** a 56-candidate ranking pressure report alongside the unchanged human
+  B1 corpus (report only: with the default scoring four accepted priorities rank 31-35, and the
+  defaults are not tuned to its keys), and B2 freeze/record/blind/fact-check/report commands with immutable receipts, common
   harness/token budgets, repeated measurements, judge agreement and a 20% human audit. The live
   sweep remains [#250](https://github.com/drevendev/HungryCrab/issues/250).
 
@@ -258,6 +260,17 @@ tracked in [docs/design/03-roadmap.md](docs/design/03-roadmap.md); this file tra
 
 ### Fixed
 
+- **Review repairs before integration (2026-10-22).** The default wiki probe no longer fails a
+  catch when GitHub answers a missing wiki with a login prompt; it records the wiki as
+  `unavailable`. A relative `--since`, an older cache without a clone policy or a catch that
+  failed after cloning refresh the clone instead of replacing it, and a digest that asks for
+  issues on a cached prey keeps its commit. `crab loop serve` no longer counts its own pick as
+  the owner's selection, so it respects `serve.prs: ask`, ideas-only hunger and human-review
+  verdicts. Section headings pass through `inline()`, Maven property expansion is capped and
+  the Gradle patterns are linear. The default scoring carries no trait weights tuned to the B1
+  golden keys, so the ranking pressure benchmark is a report, not a gate. The Feeder refuses to
+  upload a meal from a public repository unless the prey is confirmed public or
+  `allow-private-artifact` is set.
 - Refuse case-variant caller files during selective digest stale cleanup before replacing
   any artifact; keep caller bytes and the previous manifest intact on Windows and Linux.
 
@@ -276,6 +289,24 @@ tracked in [docs/design/03-roadmap.md](docs/design/03-roadmap.md); this file tra
   now require explicit human review
   ([#149](https://github.com/drevendev/HungryCrab/pull/149)).
 
+- **Claude Code sees a new release of the plugin as an update.** Claude Code offers a plugin
+  update only when the version string it computes changes, and the plugin carried the same
+  version in `.claude-plugin/plugin.json` and in its marketplace entry. The entry no longer has
+  one: the version lives in `plugin.json` alone and moves at each release, which is when the
+  **Update** button lights up. The README says how to turn on auto-update for the marketplace,
+  which Claude Code leaves off for third-party marketplaces, and a release now bumps five
+  version places instead of six.
+- **Cache deletion stays inside the cache and works under a linked cache root.** `crab cache rm`,
+  `crab catch --force` and the replacement of a clone without `.git` made every entry of the
+  tree writable before deleting it, and `chmod` followed a symlink to its target outside the
+  cache. Nothing is made writable up front now: an entry is retried only after its deletion
+  fails, and only when every component from the cache root down to it is a real directory or
+  file, never a symlink or a Windows junction. The cache root and its parents are left alone,
+  so `~/.cache` on another disk, `CRAB_CACHE_DIR` in a junctioned folder and
+  `/home -> /var/home` keep working. A tree that cannot be removed is a reported error with a
+  hint instead of a traceback, and digest references refuse junctions as well as symlinks.
+  Checking that the cache owns what it deletes is still open
+  ([#211](https://github.com/drevendev/HungryCrab/issues/211)).
 - **GitHub REST responses have a byte budget before JSON decoding.** Both `gh api` and
   HTTPS refuse a response larger than 8 MiB instead of buffering it without a bound. The
   `gh` transport drains both pipes concurrently, caps stderr at 64 KiB, and kills and reaps

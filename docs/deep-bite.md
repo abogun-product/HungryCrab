@@ -1,52 +1,29 @@
 # Deep Bite (0.4)
 
-Deep Bite adds syntax evidence, eight ecosystem manifests and provider signals to the
-deterministic pipeline. It is development functionality, not a release announcement.
+Deep Bite adds eight ecosystem manifests and provider signals to the deterministic pipeline.
+It is development functionality, not a release announcement.
+
+The optional tree-sitter syntax index this milestone also planned (declarations, a lexical call
+graph and the first `code` cards) was postponed on 2026-10-22: native parsers reading hostile
+prey, ten more packages to keep in step and digests that differ by environment outweighed what
+it added. It comes back when a real evidence gap asks for it; until then `code` is a deferred
+category and the runtime dependency is PyYAML alone.
 
 ## Install and use
 
-The basic CLI still depends only on PyYAML. Install the optional, locked grammar packages for
-syntax analysis:
+The CLI depends only on PyYAML.
 
 ```text
-uv sync --all-extras
 uv run crab catch owner/repo --shallow --issues 100 --discussions 25 --reviews 100 --runs 10
 uv run crab digest owner/repo --maw . --depth deep
 uv run crab compare owner/repo --maw .
 uv run crab eat https://gitlab.com/group/project --deterministic --maw . --allow-unknown-size
 ```
 
-For a tool install, request the `deep` extra on the same pinned source/version you already
-use. No dependency is installed inside a prey clone. `--discussions`, `--reviews` and `--runs`
+No dependency is installed inside a prey clone. `--discussions`, `--reviews` and `--runs`
 are opt-in counts (0..3000) on catch, digest, compare and eat. A digest with explicit acquisition
 counts refreshes those channels even when the clone already exists. Discussions require GitHub
 authentication. Review prose stays in untrusted JSON; Markdown carries counts and paths only.
-
-## Syntax contract
-
-`symbols.json` holds declarations, kinds, qualified names, parameter syntax-node counts, source line ranges,
-lexical calls and edges. `symbols.md` pages the declaration index. Python, JavaScript,
-TypeScript/TSX, C#, Go, Rust, Java, PHP and Ruby use their official tree-sitter grammars.
-The existing `architecture.json` remains compatible; new architecture cards reference precise
-declarations rather than changing legacy nutrient ids.
-
-The graph records unambiguous same-file lexical references. Imports, member dispatch,
-overloads and dynamic calls remain unresolved. It is not a whole-program runtime graph or a
-claim that a named function implements an algorithm. `code` cards are review subjects for
-callable boundaries with callers in a language indexed in the maw; an architect must decide
-whether carrying the idea over is useful. Identical qualified names already in the maw suppress
-the proposal. Cards carry line links at the prey commit, a stable prey-specific id, and the
-graph interpretation in their trace. They start as ideas. License review flags or applicable
-file exceptions narrow syntax-backed subjects to HUMAN.
-
-Parsers run in a trusted isolated Python subprocess, with credentials removed, a grammar
-allowlist, bounded input/output, node traversal and a ten-second worker lease. Workers receive
-data over stdin; no prey module is imported or executed. Native crashes, timeouts, syntax
-errors, oversized files, unsupported languages and missing extras have distinct coverage
-statuses. These do not become successful empty declarations. Normal/deep file caps are
-1000/8000; each source is at most 400 KB; batches are at most sixteen files. Inspect the
-coverage block before treating an index as complete. Parser and grammar versions, including
-missing extras, and all acquired API data participate in digest cache identity.
 
 ## Ecosystems and providers
 
@@ -92,9 +69,10 @@ prose and arbitrary artifact programs never become digest Markdown.
 ## Measured quality
 
 The human B1 corpus is unchanged. A separate synthetic pressure pair produces more than fifty
-candidates, so top-30 now tests ranking as well as rule activation. Its generic priorities come
-from prior human acceptance, not a new invented usefulness golden set. An intentionally broken
-scoring configuration must fail that gate. Real human labeling of a larger corpus remains part
+candidates, so top-30 shows ranking as well as rule activation. Its generic priorities come
+from prior human acceptance, not a new invented usefulness golden set. It reports rather than
+gates: with the default scoring four of them rank 31-35, and the defaults are not tuned to its
+keys. An intentionally broken scoring configuration must miss them. Real human labeling of a larger corpus remains part
 of [#200](https://github.com/drevendev/HungryCrab/issues/200).
 
 The [B2 operator guide](../benchmarks/README.md) describes the full frozen experiment pipeline.

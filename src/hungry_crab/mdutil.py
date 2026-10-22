@@ -121,7 +121,9 @@ class MdDoc:
         self.sections: list[MdSection] = []
 
     def section(self, heading: str, *, priority: int = 5) -> MdSection:
-        section = MdSection(heading, priority)
+        # Headings name prey things too (a wiki page, a gist path), and git allows a line break
+        # in a path: spliced raw, it would end the heading and start lines of the prey's choosing.
+        section = MdSection(inline(heading), priority)
         self.sections.append(section)
         return section
 

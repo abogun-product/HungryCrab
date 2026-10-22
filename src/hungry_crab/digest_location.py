@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from .errors import CrabError
+from .fs import is_reparse_point
 
 REF_SCHEMA = "hungry-crab.digest-ref/1"
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
@@ -30,14 +31,14 @@ class DigestLocation:
 
 
 def _require_real_directory(path: Path, *, label: str) -> None:
-    """Require one cache-path component to be a directory itself, never a symlink."""
+    """Require a real directory, refusing symlinks and Windows reparse points."""
     try:
-        mode = path.lstat().st_mode
+        info = path.lstat()
     except FileNotFoundError as exc:
         raise CrabError(f"missing {label} {path}") from exc
     except OSError as exc:
         raise CrabError(f"cannot inspect {label} {path}", hint=str(exc)) from exc
-    if not stat.S_ISDIR(mode):
+    if not stat.S_ISDIR(info.st_mode) or is_reparse_point(info):
         raise CrabError(f"invalid {label} {path}: expected a real directory")
 
 
@@ -73,12 +74,12 @@ def resolve_canonical_digest(digests_dir: Path, sha: str) -> DigestLocation:
 
     ref_path = refs_dir / f"{sha}.json"
     try:
-        ref_mode = ref_path.lstat().st_mode
+        ref_info = ref_path.lstat()
     except FileNotFoundError:
         return DigestLocation(sha=sha, path=legacy)
     except OSError as exc:
         raise CrabError(f"cannot inspect digest ref {ref_path}") from exc
-    if not stat.S_ISREG(ref_mode):
+    if not stat.S_ISREG(ref_info.st_mode) or is_reparse_point(ref_info):
         raise CrabError(f"invalid digest ref {ref_path}: expected a regular file")
 
     ref = _load_ref(ref_path)

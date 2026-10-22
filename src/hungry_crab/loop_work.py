@@ -119,6 +119,10 @@ def serve_phase(
                 ids=[nutrient_id],
                 mode="issue" if phase == "serve" else "pr-branch",
                 notes=Path(meal["notes"]),
+                # The loop picked this id, not the owner. Owner selection is what lets a card
+                # past `serve.prs: ask`, an ideas-only hunger and a human-review licence verdict,
+                # so an unattended pick must never count as one.
+                explicit_ids=[],
             ),
             config=config,
             ledger=ledger,

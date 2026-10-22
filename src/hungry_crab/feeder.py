@@ -245,6 +245,6 @@ def eat(
         staged.rename(out)
     finally:
         if staged.exists():
-            rmtree_force(staged)
+            rmtree_force(staged, cache_root=staged.parent)
     log(f"Feeder bundle written to {out}; no issues or ledger were written")
     return EatResult(out, manifest)

@@ -10,7 +10,48 @@ import sys
 import uuid
 from pathlib import Path
 
+from hungry_crab.cache import Slug
 from hungry_crab.cli import main
+from hungry_crab.errors import CrabError
+from hungry_crab.fetch.providers import client_for
+
+EXPOSURE_REFUSAL = (
+    "refusing to build a meal artifact: the calling repository is public, or its visibility is "
+    "unknown, and the prey is not verifiably public. Its digest (file tree, issue titles and "
+    "excerpts, commit subjects) would be downloadable by anyone signed in to GitHub. Set "
+    "allow-private-artifact: true to upload it anyway."
+)
+
+
+def caller_is_private() -> bool | None:
+    """Visibility of the calling repository, from the event payload the runner provides."""
+    path = os.environ.get("GITHUB_EVENT_PATH")
+    if not path:
+        return None
+    try:
+        event = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    repository = event.get("repository") if isinstance(event, dict) else None
+    if not isinstance(repository, dict):
+        return None
+    if repository.get("visibility") in {"private", "internal"} or repository.get("private") is True:
+        return True
+    if repository.get("visibility") == "public" or repository.get("private") is False:
+        return False
+    return None
+
+
+def prey_is_public(prey: str, *, local: bool) -> bool:
+    """True only when the forge confirms the prey is public; a local checkout never is."""
+    if local:
+        return False
+    try:
+        slug = Slug.parse(prey)
+        data = client_for(slug).repo(slug)
+    except (CrabError, ValueError):
+        return False
+    return data.get("visibility") == "public" or data.get("private") is False
 
 
 def run() -> int:
@@ -24,8 +65,21 @@ def run() -> int:
     prey = os.environ["CRAB_PREY"]
     # uv runs in the trusted action checkout; local prey paths belong to the caller workspace.
     local_prey = workspace / Path(prey).expanduser()
-    if local_prey.is_dir():
+    local = local_prey.is_dir()
+    if local:
         prey = str(local_prey.resolve())
+    allow = os.environ.get("CRAB_ALLOW_PRIVATE_ARTIFACT", "false").lower()
+    if allow not in {"true", "false"}:
+        raise ValueError("allow-private-artifact must be true or false")
+    # A private prey read with a prey-token must not become a public download: artifacts of a
+    # public repository are readable by anyone signed in to GitHub.
+    if (
+        allow == "false"
+        and caller_is_private() is not True
+        and not prey_is_public(prey, local=local)
+    ):
+        print(EXPOSURE_REFUSAL, file=sys.stderr)
+        return 2
     args = [
         "--cache-dir",
         cache,

@@ -142,7 +142,7 @@ class GitHubClient:
                 timer.start()
                 try:
                     assert proc.stdout is not None
-                    body = cast(bytes, proc.stdout.read(8 * 1024 * 1024 + 1))
+                    body = proc.stdout.read(8 * 1024 * 1024 + 1)
                     if len(body) > 8 * 1024 * 1024:
                         proc.kill()
                         raise ExternalCommandError("Actions artifact exceeds 8 MiB")

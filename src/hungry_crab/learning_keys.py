@@ -6,7 +6,7 @@ from .nutrients import slugify
 
 
 def learning_key(category: str, key: str, prey: str) -> str:
-    for prefix in (category, "symbols", "signals"):
+    for prefix in (category, "signals"):
         scoped = prefix + "." + slugify(prey) + "."
         if prey and key.startswith(scoped):
             return prefix + ".*." + key[len(scoped) :]

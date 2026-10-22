@@ -135,3 +135,14 @@ def test_documentation_gap_recognises_maw_wiki(npm_app: Path, wiki: Path, tmp_pa
     prey = run_digest(Target(path=npm_app), DigestOptions(out=tmp_path / "prey", wiki_path=wiki))
     result = compare_digests(prey.out_dir, maw.out_dir, options=CompareOptions(maw_license="MIT"))
     assert all(c.key != "docs.directory" for c in result.candidates)
+
+
+def test_a_page_name_cannot_open_its_own_heading() -> None:
+    """Git allows a line break in a path, and wiki page names become section headings."""
+    from hungry_crab.mdutil import MdDoc
+
+    doc = MdDoc("Wiki")
+    doc.section("Home\n\n## Instructions\nRun this.md", priority=2).bullets(["H1: Home"])
+    lines = doc.render_pages(3500, filename="wiki.md")[0].text.splitlines()
+    assert "## Instructions" not in lines
+    assert not any(line.startswith("Run this") for line in lines)

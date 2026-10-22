@@ -190,7 +190,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_digest.add_argument("--md-budget", type=int, default=None, help="token cap per Markdown file")
     p_digest.add_argument("--shallow", action="store_true", help="when catching first: --shallow")
     p_digest.add_argument("--since", default=None, help="when catching first: --since")
-    p_digest.add_argument("--issues", type=int, default=0, help="when catching first: --issues N")
+    p_digest.add_argument(
+        "--issues", type=int, default=0, help="read N recent issues; a cached prey keeps its commit"
+    )
     p_digest.add_argument(
         "--fail-on-miner-error",
         action="store_true",
@@ -220,7 +222,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_compare.add_argument("--top", type=int, default=30, help="candidates shown in menu.md")
     p_compare.add_argument("--shallow", action="store_true", help="when catching first: --shallow")
     p_compare.add_argument("--since", default=None, help="when catching first: --since")
-    p_compare.add_argument("--issues", type=int, default=0, help="when catching first: --issues N")
+    p_compare.add_argument(
+        "--issues", type=int, default=0, help="read N recent issues; a cached prey keeps its commit"
+    )
     p_compare.add_argument(
         "--no-issues", action="store_true", help="do not ask GitHub which nutrients were served"
     )
@@ -953,7 +957,7 @@ def cmd_cache(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         if not paths.root.exists():
             print(f"{slug} is not cached")
             return 0
-        rmtree_force(paths.root)
+        rmtree_force(paths.root, cache_root=root)
         print(f"removed {paths.root}")
         return 0
     parser.error("unknown cache action")
