@@ -247,6 +247,17 @@ tracked in [docs/design/03-roadmap.md](docs/design/03-roadmap.md); this file tra
 
 ### Fixed
 
+- **Review repairs before integration (2026-10-22).** The default wiki probe no longer fails a
+  catch when GitHub answers a missing wiki with a login prompt; it records the wiki as
+  `unavailable`. A relative `--since`, an older cache without a clone policy or a catch that
+  failed after cloning refresh the clone instead of replacing it, and a digest that asks for
+  issues on a cached prey keeps its commit. `crab loop serve` no longer counts its own pick as
+  the owner's selection, so it respects `serve.prs: ask`, ideas-only hunger and human-review
+  verdicts. Section headings pass through `inline()`, Maven property expansion is capped and
+  the Gradle patterns are linear. The default scoring carries no trait weights tuned to the B1
+  golden keys, so the ranking pressure benchmark is a report, not a gate. The Feeder refuses to
+  upload a meal from a public repository unless the prey is confirmed public or
+  `allow-private-artifact` is set.
 - Refuse case-variant caller files during selective digest stale cleanup before replacing
   any artifact; keep caller bytes and the previous manifest intact on Windows and Linux.
 
