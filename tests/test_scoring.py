@@ -31,8 +31,8 @@ def test_default_weights_load_from_package_data() -> None:
     assert scoring.effort["S"] == 1.0
     assert scoring.risk["low"] == 0.0
     assert scoring.uptake["other_stack"] < scoring.uptake["same_stack"]
-    assert scoring.traits["ci.schedule"] == 0.8
-    assert scoring.traits["hygiene.issue-templates"] == 1.0
+    # The shipped defaults favour no trait: tuning them to the B1 golden keys moves the gate.
+    assert scoring.traits == {}
 
 
 def test_score_formula() -> None:

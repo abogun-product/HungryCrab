@@ -39,8 +39,9 @@ tracked in [docs/design/03-roadmap.md](docs/design/03-roadmap.md); this file tra
   ownership; publication still requires a GitHub maw.
 - **Eight dependency ecosystems:** Python, npm, .NET, Go, Rust, Ruby, JVM (Maven/Gradle), PHP
   (Composer), with explicit unresolved inheritance/catalog facts and no package execution.
-- **Quality measurement:** a 56-candidate B1 ranking pressure gate alongside the unchanged human
-  corpus, and B2 freeze/record/blind/fact-check/report commands with immutable receipts, common
+- **Quality measurement:** a 56-candidate ranking pressure report alongside the unchanged human
+  B1 corpus (report only: with the default scoring four accepted priorities rank 31-35, and the
+  defaults are not tuned to its keys), and B2 freeze/record/blind/fact-check/report commands with immutable receipts, common
   harness/token budgets, repeated measurements, judge agreement and a 20% human audit. The live
   sweep remains [#250](https://github.com/drevendev/HungryCrab/issues/250).
 

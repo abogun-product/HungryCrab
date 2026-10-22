@@ -43,8 +43,8 @@ release; the integrated development candidate is 0.5.0.dev0, "Taste Memory".** T
 decision learning, gap-directed GitHub discovery, multi-prey menus and reviewed hunger profiles.
 See the [Taste Memory guide](docs/taste-memory.md). Feeder and Scheduled Crab provide
 deterministic meals and guarded publication. Deep Bite adds Discussions, review comments, CI
-reliability evidence, eight dependency ecosystems and GitLab.com acquisition. B1 now includes a ranking pressure
-gate; B2 has a frozen, blinded experiment pipeline. Release and live acceptance evidence remain
+reliability evidence, eight dependency ecosystems and GitLab.com acquisition. B1 is joined by a ranking pressure
+report; B2 has a frozen, blinded experiment pipeline. Release and live acceptance evidence remain
 tracked separately. See the [roadmap](docs/design/03-roadmap.md),
 [Deep Bite guide](docs/deep-bite.md), [Feeder guide](docs/feeder.md) and
 [Scheduled Crab guide](docs/scheduled-crab.md).

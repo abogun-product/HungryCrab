@@ -69,9 +69,10 @@ prose and arbitrary artifact programs never become digest Markdown.
 ## Measured quality
 
 The human B1 corpus is unchanged. A separate synthetic pressure pair produces more than fifty
-candidates, so top-30 now tests ranking as well as rule activation. Its generic priorities come
-from prior human acceptance, not a new invented usefulness golden set. An intentionally broken
-scoring configuration must fail that gate. Real human labeling of a larger corpus remains part
+candidates, so top-30 shows ranking as well as rule activation. Its generic priorities come
+from prior human acceptance, not a new invented usefulness golden set. It reports rather than
+gates: with the default scoring four of them rank 31-35, and the defaults are not tuned to its
+keys. An intentionally broken scoring configuration must miss them. Real human labeling of a larger corpus remains part
 of [#200](https://github.com/drevendev/HungryCrab/issues/200).
 
 The [B2 operator guide](../benchmarks/README.md) describes the full frozen experiment pipeline.
